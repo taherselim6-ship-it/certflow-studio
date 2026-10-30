@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 import pymupdf
+from engine import github_sync
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FONTS_DIR = BASE_DIR / "fonts"
@@ -70,7 +71,14 @@ def list_fonts() -> List[Dict[str, Any]]:
     return fonts
 
 
-def save_font(filename: str, content: bytes) -> Dict[str, Any]:
+def save_font(filename: str, content: bytes, sync: bool = True) -> Dict[str, Any]:
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote fonts could not be verified on startup. "
+            "Font uploads are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
+
     ensure_fonts_dir()
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -83,12 +91,32 @@ def save_font(filename: str, content: bytes) -> Dict[str, Any]:
     with open(target_path, "wb") as f:
         f.write(content)
 
+    if sync:
+        github_sync.sync_file_push(
+            target_path,
+            commit_message=f"Auto-sync: add font {safe_name}",
+            raise_on_error=True,
+        )
+
     return get_font_metadata(target_path)
 
 
-def delete_font(filename: str) -> bool:
+def delete_font(filename: str, sync: bool = True) -> bool:
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote fonts could not be verified on startup. "
+            "Font deletions are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
+
     safe_name = Path(filename).name
     target_path = FONTS_DIR / safe_name
+    if sync:
+        github_sync.sync_file_delete(
+            target_path,
+            commit_message=f"Auto-sync: delete font {safe_name}",
+            raise_on_error=False,
+        )
     if target_path.exists() and target_path.is_file():
         target_path.unlink()
         return True
@@ -96,20 +124,34 @@ def delete_font(filename: str) -> bool:
 
 
 def get_font_path(font_name_or_file: str) -> Optional[Path]:
+    """
+    Safely finds font file inside FONTS_DIR.
+    Rejects path traversal (..), absolute paths, and symlink escapes outside FONTS_DIR.
+    """
     ensure_fonts_dir()
-    # 1. Direct filename match
-    direct = FONTS_DIR / font_name_or_file
-    if direct.exists() and direct.suffix.lower() in ALLOWED_EXTENSIONS:
-        return direct
+    if not font_name_or_file or "\0" in font_name_or_file:
+        return None
 
-    # 2. Check stem or display name
+    # 1. Direct filename match with strict traversal validation (FIX 3)
+    p = Path(font_name_or_file)
+    if not p.is_absolute() and ".." not in p.parts:
+        try:
+            fonts_resolved = FONTS_DIR.resolve()
+            candidate = (FONTS_DIR / p).resolve()
+            if candidate.is_relative_to(fonts_resolved) and candidate.is_file() and candidate.suffix.lower() in ALLOWED_EXTENSIONS:
+                return candidate
+        except Exception:
+            pass
+
+    # 2. Check stem or display name safely within FONTS_DIR
+    clean_target = Path(font_name_or_file).name.lower()
     for item in FONTS_DIR.iterdir():
         if item.is_file() and item.suffix.lower() in ALLOWED_EXTENSIONS:
-            if item.stem.lower() == font_name_or_file.lower():
+            if item.stem.lower() == clean_target or item.name.lower() == clean_target:
                 return item
             try:
                 meta = get_font_metadata(item)
-                if meta["name"].lower() == font_name_or_file.lower():
+                if meta["name"].lower() == clean_target:
                     return item
             except Exception:
                 continue

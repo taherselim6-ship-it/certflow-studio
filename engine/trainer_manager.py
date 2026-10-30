@@ -29,6 +29,10 @@ def ensure_store_dirs() -> None:
     TRAINERS_STORE_DIR.mkdir(parents=True, exist_ok=True)
     SIGNATURES_DIR.mkdir(parents=True, exist_ok=True)
     if not TRAINERS_FILE.exists():
+        # FIX 1: If GitHub sync is configured but hydration has not succeeded,
+        # do NOT create an empty trainers.json to prevent wiping historical remote data!
+        if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+            return
         with open(TRAINERS_FILE, "w", encoding="utf-8") as f:
             json.dump([], f, ensure_ascii=False, indent=2)
 
@@ -112,15 +116,17 @@ def process_vector_pdf_signature(
     pix = page.get_pixmap(alpha=True, dpi=150)
     pix.save(str(thumb_target_path))
 
-    # Auto-sync vector signature files to GitHub in background thread
+    # Auto-sync vector signature files to GitHub with verified commits
     if not prefix.startswith("preview_temp"):
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             pdf_target_path,
             commit_message=f"Auto-sync: vector signature PDF {pdf_filename}",
+            raise_on_error=True,
         )
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             thumb_target_path,
             commit_message=f"Auto-sync: signature thumbnail {thumb_filename}",
+            raise_on_error=True,
         )
 
     return {
@@ -186,9 +192,10 @@ def process_raster_signature(
 
         cropped.save(target_path, format="PNG", optimize=True)
         if not prefix.startswith("preview_temp"):
-            github_sync.push_file_async(
+            github_sync.sync_file_push(
                 target_path,
                 commit_message=f"Auto-sync: transparent signature PNG {filename}",
+                raise_on_error=True,
             )
         return {
             "filename": filename,
@@ -245,9 +252,10 @@ def process_raster_signature(
 
     cropped.save(target_path, format="PNG", optimize=True)
     if not prefix.startswith("preview_temp"):
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             target_path,
             commit_message=f"Auto-sync: signature PNG {filename}",
+            raise_on_error=True,
         )
     return {
         "filename": filename,
@@ -299,9 +307,10 @@ def save_trainers_store(trainers: List[Dict[str, Any]], sync: bool = True) -> No
     with open(TRAINERS_FILE, "w", encoding="utf-8") as f:
         json.dump(trainers, f, ensure_ascii=False, indent=2)
     if sync:
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             TRAINERS_FILE,
             commit_message=f"Auto-sync: update trainers.json ({len(trainers)} trainers)",
+            raise_on_error=True,
         )
 
 
@@ -327,43 +336,52 @@ def create_trainer(
     signature_filename: Optional[str] = None,
     script_url: str = "",
 ) -> Dict[str, Any]:
-    ensure_store_dirs()
-    trainers = load_trainers()
-
-    trainer_id = f"tr_{uuid.uuid4().hex[:8]}"
-    sig_info = None
-
-    if signature_bytes and len(signature_bytes) > 0:
-        sig_info = save_processed_signature(
-            signature_bytes,
-            filename_hint=signature_filename or "",
-            prefix=trainer_id,
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote trainers could not be verified on startup. "
+            "Mutations are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
         )
 
-    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    # FIX 2: Domain-level lock for full read-modify-write-push lifecycle
+    with github_sync.store_lock("trainers", TRAINERS_STORE_DIR / ".trainers.lock"):
+        ensure_store_dirs()
+        trainers = load_trainers()
 
-    trainer_record = {
-        "id": trainer_id,
-        "name": name.strip(),
-        "sheet_url": sheet_url.strip(),
-        "script_url": script_url.strip() if script_url else "",
-        "name_col": name_col.strip() or "الاسم",
-        "time_col": time_col.strip() or "Timestamp",
-        "scale": float(scale),
-        "signature_filename": sig_info["filename"] if sig_info else None,
-        "signature_type": sig_info["signature_type"] if sig_info else None,
-        "is_vector": sig_info.get("is_vector", False) if sig_info else False,
-        "signature_url": sig_info["url"] if sig_info else None,
-        "thumbnail_url": sig_info.get("thumbnail_url") if sig_info else None,
-        "signature_width": sig_info["width"] if sig_info else None,
-        "signature_height": sig_info["height"] if sig_info else None,
-        "created_at": now,
-        "updated_at": now,
-    }
+        trainer_id = f"tr_{uuid.uuid4().hex[:8]}"
+        sig_info = None
 
-    trainers.append(trainer_record)
-    save_trainers_store(trainers)
-    return trainer_record
+        if signature_bytes and len(signature_bytes) > 0:
+            sig_info = save_processed_signature(
+                signature_bytes,
+                filename_hint=signature_filename or "",
+                prefix=trainer_id,
+            )
+
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        trainer_record = {
+            "id": trainer_id,
+            "name": name.strip(),
+            "sheet_url": sheet_url.strip(),
+            "script_url": script_url.strip() if script_url else "",
+            "name_col": name_col.strip() or "الاسم",
+            "time_col": time_col.strip() or "Timestamp",
+            "scale": float(scale),
+            "signature_filename": sig_info["filename"] if sig_info else None,
+            "signature_type": sig_info["signature_type"] if sig_info else None,
+            "is_vector": sig_info.get("is_vector", False) if sig_info else False,
+            "signature_url": sig_info["url"] if sig_info else None,
+            "thumbnail_url": sig_info.get("thumbnail_url") if sig_info else None,
+            "signature_width": sig_info["width"] if sig_info else None,
+            "signature_height": sig_info["height"] if sig_info else None,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        trainers.append(trainer_record)
+        save_trainers_store(trainers, sync=True)
+        return trainer_record
 
 
 def update_trainer(
@@ -377,119 +395,141 @@ def update_trainer(
     signature_filename: Optional[str] = None,
     script_url: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    trainers = load_trainers()
-    target_idx = -1
-    for idx, t in enumerate(trainers):
-        if t.get("id") == trainer_id:
-            target_idx = idx
-            break
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote trainers could not be verified on startup. "
+            "Mutations are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
 
-    if target_idx == -1:
-        return None
+    # FIX 2: Domain-level lock
+    with github_sync.store_lock("trainers", TRAINERS_STORE_DIR / ".trainers.lock"):
+        trainers = load_trainers()
+        target_idx = -1
+        for idx, t in enumerate(trainers):
+            if t.get("id") == trainer_id:
+                target_idx = idx
+                break
 
-    trainer = trainers[target_idx]
+        if target_idx == -1:
+            return None
 
-    if name is not None:
-        trainer["name"] = name.strip()
-    if sheet_url is not None:
-        trainer["sheet_url"] = sheet_url.strip()
-    if script_url is not None:
-        trainer["script_url"] = script_url.strip()
-    if name_col is not None:
-        trainer["name_col"] = name_col.strip() or "الاسم"
-    if time_col is not None:
-        trainer["time_col"] = time_col.strip() or "Timestamp"
-    if scale is not None:
-        trainer["scale"] = float(scale)
+        trainer = trainers[target_idx]
 
-    if signature_bytes and len(signature_bytes) > 0:
-        # Remove old signature and thumbnail files
-        old_filename = trainer.get("signature_filename")
-        if old_filename:
-            p = SIGNATURES_DIR / old_filename
-            if p.exists():
+        if name is not None:
+            trainer["name"] = name.strip()
+        if sheet_url is not None:
+            trainer["sheet_url"] = sheet_url.strip()
+        if script_url is not None:
+            trainer["script_url"] = script_url.strip()
+        if name_col is not None:
+            trainer["name_col"] = name_col.strip() or "الاسم"
+        if time_col is not None:
+            trainer["time_col"] = time_col.strip() or "Timestamp"
+        if scale is not None:
+            trainer["scale"] = float(scale)
+
+        if signature_bytes and len(signature_bytes) > 0:
+            # Remove old signature and thumbnail files
+            old_filename = trainer.get("signature_filename")
+            if old_filename:
+                p = SIGNATURES_DIR / old_filename
+                github_sync.sync_file_delete(
+                    p,
+                    commit_message=f"Auto-sync: delete old signature {old_filename}",
+                    raise_on_error=False,
+                )
+                if p.exists():
+                    try:
+                        p.unlink()
+                    except Exception:
+                        pass
+                # Check thumbnail file
+                thumb_name = p.stem + "_thumb.png"
+                p_thumb = SIGNATURES_DIR / thumb_name
+                github_sync.sync_file_delete(
+                    p_thumb,
+                    commit_message=f"Auto-sync: delete old signature thumbnail {thumb_name}",
+                    raise_on_error=False,
+                )
+                if p_thumb.exists():
+                    try:
+                        p_thumb.unlink()
+                    except Exception:
+                        pass
+
+            # Save new cleaned signature
+            sig_info = save_processed_signature(
+                signature_bytes,
+                filename_hint=signature_filename or "",
+                prefix=trainer_id,
+            )
+            trainer["signature_filename"] = sig_info["filename"]
+            trainer["signature_type"] = sig_info["signature_type"]
+            trainer["is_vector"] = sig_info.get("is_vector", False)
+            trainer["signature_url"] = sig_info["url"]
+            trainer["thumbnail_url"] = sig_info.get("thumbnail_url")
+            trainer["signature_width"] = sig_info["width"]
+            trainer["signature_height"] = sig_info["height"]
+
+        trainer["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        trainers[target_idx] = trainer
+        save_trainers_store(trainers, sync=True)
+        return trainer
+
+
+def delete_trainer(trainer_id: str) -> bool:
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote trainers could not be verified on startup. "
+            "Deletions are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
+
+    # FIX 2: Domain-level lock
+    with github_sync.store_lock("trainers", TRAINERS_STORE_DIR / ".trainers.lock"):
+        trainers = load_trainers()
+        target = None
+        remaining = []
+
+        for t in trainers:
+            if t.get("id") == trainer_id:
+                target = t
+            else:
+                remaining.append(t)
+
+        if not target:
+            return False
+
+        # Delete signature file and thumbnail from GitHub first, then locally
+        sig_filename = target.get("signature_filename")
+        if sig_filename:
+            sig_path = SIGNATURES_DIR / sig_filename
+            github_sync.sync_file_delete(
+                sig_path,
+                commit_message=f"Auto-sync: delete signature {sig_filename}",
+                raise_on_error=False,
+            )
+            if sig_path.exists():
                 try:
-                    p.unlink()
+                    sig_path.unlink()
                 except Exception:
                     pass
-            github_sync.delete_file_async(
-                p,
-                commit_message=f"Auto-sync: delete old signature {old_filename}",
-            )
-            # Check thumbnail file
-            thumb_name = p.stem + "_thumb.png"
+            thumb_name = sig_path.stem + "_thumb.png"
             p_thumb = SIGNATURES_DIR / thumb_name
+            github_sync.sync_file_delete(
+                p_thumb,
+                commit_message=f"Auto-sync: delete signature thumbnail {thumb_name}",
+                raise_on_error=False,
+            )
             if p_thumb.exists():
                 try:
                     p_thumb.unlink()
                 except Exception:
                     pass
-                github_sync.delete_file_async(
-                    p_thumb,
-                    commit_message=f"Auto-sync: delete old signature thumbnail {thumb_name}",
-                )
 
-        # Save new cleaned signature
-        sig_info = save_processed_signature(
-            signature_bytes,
-            filename_hint=signature_filename or "",
-            prefix=trainer_id,
-        )
-        trainer["signature_filename"] = sig_info["filename"]
-        trainer["signature_type"] = sig_info["signature_type"]
-        trainer["is_vector"] = sig_info.get("is_vector", False)
-        trainer["signature_url"] = sig_info["url"]
-        trainer["thumbnail_url"] = sig_info.get("thumbnail_url")
-        trainer["signature_width"] = sig_info["width"]
-        trainer["signature_height"] = sig_info["height"]
-
-    trainer["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    trainers[target_idx] = trainer
-    save_trainers_store(trainers, sync=True)
-    return trainer
-
-
-def delete_trainer(trainer_id: str) -> bool:
-    trainers = load_trainers()
-    target = None
-    remaining = []
-
-    for t in trainers:
-        if t.get("id") == trainer_id:
-            target = t
-        else:
-            remaining.append(t)
-
-    if not target:
-        return False
-
-    # Delete signature file and thumbnail
-    sig_filename = target.get("signature_filename")
-    if sig_filename:
-        sig_path = SIGNATURES_DIR / sig_filename
-        if sig_path.exists():
-            try:
-                sig_path.unlink()
-            except Exception:
-                pass
-        github_sync.delete_file_async(
-            sig_path,
-            commit_message=f"Auto-sync: delete signature {sig_filename}",
-        )
-        thumb_name = sig_path.stem + "_thumb.png"
-        p_thumb = SIGNATURES_DIR / thumb_name
-        if p_thumb.exists():
-            try:
-                p_thumb.unlink()
-            except Exception:
-                pass
-            github_sync.delete_file_async(
-                p_thumb,
-                commit_message=f"Auto-sync: delete signature thumbnail {thumb_name}",
-            )
-
-    save_trainers_store(remaining, sync=True)
-    return True
+        save_trainers_store(remaining, sync=True)
+        return True
 
 
 def get_signature_path(filename: str) -> Optional[Path]:

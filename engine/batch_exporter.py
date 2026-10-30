@@ -168,46 +168,18 @@ def execute_batch_export(
     processed_records = []
     warnings = []
 
-    if export_mode == "combined_pdf":
-        out_filename = f"{clean_prefix}_{tpl_name}_{timestamp}.pdf"
-        out_path = EXPORTS_DIR / out_filename
+    out_path = EXPORTS_DIR / (
+        f"{clean_prefix}_{tpl_name}_{timestamp}.pdf"
+        if export_mode == "combined_pdf"
+        else f"{clean_prefix}_{tpl_name}_{timestamp}_{'PDFs' if export_mode == 'individual_pdfs_zip' else 'JPEGs'}.zip"
+    )
 
-        master_doc = pymupdf.open()
+    try:
+        if export_mode == "combined_pdf":
+            out_filename = out_path.name
 
-        for seq, idx in enumerate(selected_indices, start=1):
-            rec = records[idx]
-            cert_doc = pdf_engine.build_certificate_pdf(
-                template_config=template_config,
-                record_data=rec,
-                show_trim_guide=False,
-            )
+            master_doc = pymupdf.open()
 
-            metrics = getattr(cert_doc, "_render_metrics", {})
-            name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record {idx+1}"
-            if metrics.get("is_shrunk"):
-                warnings.append(
-                    f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}% ليتناسب مع الإطار"
-                )
-            if metrics.get("is_overflow"):
-                warnings.append(
-                    f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز إطار الطباعة عند الحد الأدنى للحجم"
-                )
-
-            # Insert single page into master document
-            master_doc.insert_pdf(cert_doc)
-            cert_doc.close()
-            processed_records.append(rec)
-
-        master_doc.save(str(out_path), garbage=4, deflate=True)
-        master_doc.close()
-
-        media_type = "application/pdf"
-
-    elif export_mode == "individual_pdfs_zip":
-        out_filename = f"{clean_prefix}_{tpl_name}_{timestamp}_PDFs.zip"
-        out_path = EXPORTS_DIR / out_filename
-
-        with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for seq, idx in enumerate(selected_indices, start=1):
                 rec = records[idx]
                 cert_doc = pdf_engine.build_certificate_pdf(
@@ -217,74 +189,114 @@ def execute_batch_export(
                 )
 
                 metrics = getattr(cert_doc, "_render_metrics", {})
-                name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record_{idx+1}"
+                name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record {idx+1}"
                 if metrics.get("is_shrunk"):
                     warnings.append(
-                        f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}%"
+                        f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}% ليتناسب مع الإطار"
                     )
                 if metrics.get("is_overflow"):
                     warnings.append(
-                        f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز الإطار"
+                        f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز إطار الطباعة عند الحد الأدنى للحجم"
                     )
 
-                pdf_data = cert_doc.tobytes(garbage=4, deflate=True)
+                # Insert single page into master document
+                master_doc.insert_pdf(cert_doc)
                 cert_doc.close()
-
-                safe_name = sanitize_filename(name)
-                entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.pdf"
-                zipf.writestr(entry_name, pdf_data)
                 processed_records.append(rec)
 
-            # Add Prepress Report
-            report_text = generate_export_report(
-                template_config, processed_records, export_mode, out_filename, warnings
-            )
-            zipf.writestr("Export_Report.txt", report_text.encode("utf-8"))
+            master_doc.save(str(out_path), garbage=4, deflate=True)
+            master_doc.close()
 
-        media_type = "application/zip"
+            media_type = "application/pdf"
 
-    elif export_mode == "individual_jpegs_zip":
-        out_filename = f"{clean_prefix}_{tpl_name}_{timestamp}_JPEGs.zip"
-        out_path = EXPORTS_DIR / out_filename
+        elif export_mode == "individual_pdfs_zip":
+            out_filename = out_path.name
 
-        with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            for seq, idx in enumerate(selected_indices, start=1):
-                rec = records[idx]
-                cert_doc = pdf_engine.build_certificate_pdf(
-                    template_config=template_config,
-                    record_data=rec,
-                    show_trim_guide=False,
+            with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+                for seq, idx in enumerate(selected_indices, start=1):
+                    rec = records[idx]
+                    cert_doc = pdf_engine.build_certificate_pdf(
+                        template_config=template_config,
+                        record_data=rec,
+                        show_trim_guide=False,
+                    )
+
+                    metrics = getattr(cert_doc, "_render_metrics", {})
+                    name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record_{idx+1}"
+                    if metrics.get("is_shrunk"):
+                        warnings.append(
+                            f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}%"
+                        )
+                    if metrics.get("is_overflow"):
+                        warnings.append(
+                            f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز الإطار"
+                        )
+
+                    pdf_data = cert_doc.tobytes(garbage=4, deflate=True)
+                    cert_doc.close()
+
+                    safe_name = sanitize_filename(name)
+                    entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.pdf"
+                    zipf.writestr(entry_name, pdf_data)
+                    processed_records.append(rec)
+
+                # Add Prepress Report
+                report_text = generate_export_report(
+                    template_config, processed_records, export_mode, out_filename, warnings
                 )
+                zipf.writestr("Export_Report.txt", report_text.encode("utf-8"))
 
-                metrics = getattr(cert_doc, "_render_metrics", {})
-                name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record_{idx+1}"
-                if metrics.get("is_shrunk"):
-                    warnings.append(
-                        f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}%"
+            media_type = "application/zip"
+
+        elif export_mode == "individual_jpegs_zip":
+            out_filename = out_path.name
+
+            with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+                for seq, idx in enumerate(selected_indices, start=1):
+                    rec = records[idx]
+                    cert_doc = pdf_engine.build_certificate_pdf(
+                        template_config=template_config,
+                        record_data=rec,
+                        show_trim_guide=False,
                     )
-                if metrics.get("is_overflow"):
-                    warnings.append(
-                        f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز الإطار"
-                    )
 
-                page = cert_doc[0]
-                pix = page.get_pixmap(dpi=dpi, alpha=False)
-                jpeg_data = pix.tobytes("jpeg", jpg_quality=95)
-                cert_doc.close()
+                    metrics = getattr(cert_doc, "_render_metrics", {})
+                    name = rec.get("trainee_name") or rec.get("Trainee_Name") or f"Record_{idx+1}"
+                    if metrics.get("is_shrunk"):
+                        warnings.append(
+                            f"الشهادة #{seq} ({name}): تم تقليص الخط بنسبة {metrics.get('max_shrink_percent', 0)}%"
+                        )
+                    if metrics.get("is_overflow"):
+                        warnings.append(
+                            f"الشهادة #{seq} ({name}): تنبيه! النص يتجاوز الإطار"
+                        )
 
-                safe_name = sanitize_filename(name)
-                entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.jpg"
-                zipf.writestr(entry_name, jpeg_data)
-                processed_records.append(rec)
+                    page = cert_doc[0]
+                    pix = page.get_pixmap(dpi=dpi, alpha=False)
+                    jpeg_data = pix.tobytes("jpeg", jpg_quality=95)
+                    cert_doc.close()
 
-            report_text = generate_export_report(
-                template_config, processed_records, export_mode, out_filename, warnings
-            )
-            zipf.writestr("Export_Report.txt", report_text.encode("utf-8"))
+                    safe_name = sanitize_filename(name)
+                    entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.jpg"
+                    zipf.writestr(entry_name, jpeg_data)
+                    processed_records.append(rec)
 
-        media_type = "application/zip"
-    else:
-        raise ValueError(f"صيغة التصدير غير مدعومة: {export_mode}")
+                report_text = generate_export_report(
+                    template_config, processed_records, export_mode, out_filename, warnings
+                )
+                zipf.writestr("Export_Report.txt", report_text.encode("utf-8"))
+
+            media_type = "application/zip"
+        else:
+            raise ValueError(f"صيغة التصدير غير مدعومة: {export_mode}")
+    except Exception:
+        # FIX 4: Clean up any partial output file if generation fails
+        if out_path.exists():
+            try:
+                out_path.unlink()
+            except Exception:
+                pass
+        raise
 
     # Prepare updates payload for Google Apps Script doPost
     updates = []
@@ -295,27 +307,89 @@ def execute_batch_export(
             updates.append({"trainee_name": t_name, "template_name": template_name})
 
     apps_script_synced = False
+    apps_script_updated = 0
+    apps_script_error = None
+    apps_script_skipped = False
+
     target_script_url = apps_script_url.strip() if (apps_script_url and apps_script_url.strip()) else None
     if not target_script_url and webhook_url and ("script.google.com" in webhook_url or "script.googleusercontent.com" in webhook_url):
         target_script_url = webhook_url.strip()
 
     # Google Apps Script Write-Back (doPost)
-    if target_script_url and updates:
-        try:
-            script_payload = {
-                "sheet_url": sheet_url.strip() if sheet_url else "",
-                "updates": updates,
-                "template_name": template_name,
-                "exported_count": len(processed_records),
-                "total_count": total_records,
-                "timestamp": timestamp,
-            }
-            with httpx.Client(timeout=15.0, follow_redirects=True, headers={"Content-Type": "application/json"}) as client:
-                post_res = client.post(target_script_url, json=script_payload)
-                apps_script_synced = post_res.status_code in (200, 302)
-                logger.info(f"Google Apps Script doPost sync completed: status {post_res.status_code}, synced {len(updates)} records")
-        except Exception as e:
-            logger.warning(f"Failed to sync updates to Google Apps Script {target_script_url}: {e}")
+    if target_script_url:
+        if not updates:
+            # FIX 5: Distinguish zero trainee names from Apps Script failure
+            apps_script_skipped = True
+            apps_script_error = "لم يتم العثور على أي أسماء متدربين لتحديثها في جدول قوقل شيت"
+            logger.info("[Apps Script Sync Info] Skipped Google Apps Script write-back: zero trainee names found in batch records.")
+        else:
+            try:
+                # If sheet_url points to a Google Apps Script Web App rather than a Google Spreadsheet,
+                # clear it so the Apps Script container defaults to its active spreadsheet without throwing an invalid URL error.
+                clean_sheet_url = sheet_url.strip() if sheet_url else ""
+                if "script.google.com" in clean_sheet_url or "script.googleusercontent.com" in clean_sheet_url:
+                    clean_sheet_url = ""
+
+                script_payload = {
+                    "sheet_url": clean_sheet_url,
+                    "updates": updates,
+                    "template_name": template_name,
+                    "exported_count": len(processed_records),
+                    "total_count": total_records,
+                    "timestamp": timestamp,
+                }
+
+                # Use generous 40s timeout and follow HTTP 302 redirects to Google's usercontent echo endpoint
+                timeout_cfg = httpx.Timeout(40.0, connect=15.0)
+                headers = {
+                    "Content-Type": "application/json",
+                    "User-Agent": "CertFlow-Studio/1.0",
+                    "Accept": "application/json, text/plain, */*",
+                }
+
+                with httpx.Client(timeout=timeout_cfg, follow_redirects=True, headers=headers) as client:
+                    post_res = client.post(target_script_url, json=script_payload)
+
+                resp_text = (post_res.text or "").strip()
+                logger.info(f"Google Apps Script doPost response (HTTP {post_res.status_code}): {resp_text[:300]}")
+
+                # Check for Google login redirect (occurs if script is not deployed with 'Who has access: Anyone')
+                if post_res.status_code == 200 and (resp_text.lower().startswith("<!doctype html") or "<html" in resp_text.lower()[:100]):
+                    apps_script_error = "تطبيق Google Apps Script يتطلب تسجيل الدخول. يرجى إعادة النشر كـ Web App مع ضبط: 'Who has access: Anyone'."
+                    logger.error(f"[Apps Script Sync Error] {apps_script_error}")
+                elif post_res.status_code not in (200, 201, 302):
+                    apps_script_error = f"أرجع Google Apps Script رمز استجابة غير متوقع ({post_res.status_code}): {resp_text[:150]}"
+                    logger.error(f"[Apps Script Sync Error] {apps_script_error}")
+                else:
+                    # Parse structured JSON output from doPost
+                    try:
+                        res_data = post_res.json()
+                        if isinstance(res_data, dict):
+                            if res_data.get("status") == "error":
+                                apps_script_error = res_data.get("message") or "أرجع Google Apps Script رسالة خطأ أثناء التحديث"
+                                logger.error(f"[Apps Script Sync Error] {apps_script_error}")
+                            else:
+                                apps_script_updated = int(res_data.get("updated", res_data.get("updated_count", len(updates))))
+                                apps_script_synced = True
+                                logger.info(f"[Apps Script Sync Success] Updated {apps_script_updated}/{len(updates)} records in Google Sheet")
+                        else:
+                            apps_script_synced = True
+                            apps_script_updated = len(updates)
+                    except Exception:
+                        # Plain-text success fallback
+                        if "success" in resp_text.lower() or "ok" in resp_text.lower():
+                            apps_script_synced = True
+                            apps_script_updated = len(updates)
+                        else:
+                            apps_script_error = f"تعذر قراءة رد تطبيق Google Apps Script: {resp_text[:120]}"
+                            logger.warning(f"[Apps Script Sync Warning] {apps_script_error}")
+
+            except httpx.TimeoutException:
+                apps_script_error = "انتهت مهلة استجابة Google Apps Script (تجاوز 40 ثانية أثناء الكتابة)"
+                logger.error(f"[Apps Script Sync Timeout] {apps_script_error}")
+            except Exception as e:
+                apps_script_error = f"فشل الاتصال بـ Google Apps Script: {str(e)}"
+                logger.error(f"[Apps Script Sync Exception] {apps_script_error}")
 
     # General Webhook Notification if provided and different from script_url
     if webhook_url and webhook_url.strip() and webhook_url.strip() != target_script_url:
@@ -348,5 +422,8 @@ def execute_batch_export(
         "warnings": warnings,
         "report_summary": report_summary,
         "apps_script_synced": apps_script_synced,
+        "apps_script_updated": apps_script_updated,
+        "apps_script_skipped": apps_script_skipped,
+        "apps_script_error": apps_script_error or "",
     }
 

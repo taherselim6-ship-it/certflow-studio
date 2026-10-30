@@ -26,9 +26,10 @@ def save_templates_store(templates: List[Dict[str, Any]], sync: bool = True) -> 
     with open(TEMPLATES_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(templates, f, ensure_ascii=False, indent=2)
     if sync:
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             TEMPLATES_JSON_PATH,
             commit_message=f"Auto-sync: update templates.json ({len(templates)} templates)",
+            raise_on_error=True,
         )
 
 
@@ -36,6 +37,10 @@ def ensure_store_dirs() -> None:
     TEMPLATES_STORE.mkdir(parents=True, exist_ok=True)
     BASES_DIR.mkdir(parents=True, exist_ok=True)
     if not TEMPLATES_JSON_PATH.exists():
+        # FIX 1: If GitHub sync is configured but hydration has not succeeded,
+        # do NOT create an empty templates.json to prevent wiping historical remote data!
+        if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+            return
         save_templates_store([], sync=False)
 
 
@@ -47,9 +52,10 @@ def create_default_template_config() -> Dict[str, Any]:
         doc = pdf_engine.create_default_certificate_base()
         doc.save(str(base_file))
         doc.close()
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             base_file,
             commit_message=f"Auto-sync: default base PDF {base_default_name}",
+            raise_on_error=False,
         )
 
     now = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -216,87 +222,110 @@ def list_companies() -> List[str]:
 
 
 def save_template(template_data: Dict[str, Any]) -> Dict[str, Any]:
-    ensure_store_dirs()
-    templates = load_templates()
-    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote templates could not be verified on startup. "
+            "Mutations are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
 
-    t_id = template_data.get("id")
-    if not t_id:
-        t_id = f"tpl_{uuid.uuid4().hex[:8]}"
-        template_data["id"] = t_id
-        template_data["created_at"] = now
+    # FIX 2: Domain-level lock for full read-modify-write-push lifecycle
+    with github_sync.store_lock("templates", TEMPLATES_STORE / ".templates.lock"):
+        ensure_store_dirs()
+        templates = load_templates()
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    template_data["updated_at"] = now
+        t_id = template_data.get("id")
+        if not t_id:
+            t_id = f"tpl_{uuid.uuid4().hex[:8]}"
+            template_data["id"] = t_id
+            template_data["created_at"] = now
 
-    # Check if updating existing
-    updated = False
-    for idx, tpl in enumerate(templates):
-        if tpl.get("id") == t_id:
-            templates[idx] = template_data
-            updated = True
-            break
+        template_data["updated_at"] = now
 
-    if not updated:
-        templates.append(template_data)
+        # Check if updating existing
+        updated = False
+        for idx, tpl in enumerate(templates):
+            if tpl.get("id") == t_id:
+                templates[idx] = template_data
+                updated = True
+                break
 
-    save_templates_store(templates)
-    return template_data
+        if not updated:
+            templates.append(template_data)
+
+        save_templates_store(templates, sync=True)
+        return template_data
 
 
 def duplicate_template(template_id: str) -> Optional[Dict[str, Any]]:
-    tpl = get_template(template_id)
-    if not tpl:
-        return None
+    # FIX 2: Domain-level lock
+    with github_sync.store_lock("templates", TEMPLATES_STORE / ".templates.lock"):
+        tpl = get_template(template_id)
+        if not tpl:
+            return None
 
-    cloned = json.loads(json.dumps(tpl))
-    new_id = f"tpl_{uuid.uuid4().hex[:8]}"
-    cloned["id"] = new_id
-    cloned["name"] = f"{tpl.get('name', 'قالب')} (نسخة)"
-    now = time.strftime("%Y-%m-%d %H:%M:%S")
-    cloned["created_at"] = now
-    cloned["updated_at"] = now
+        cloned = json.loads(json.dumps(tpl))
+        new_id = f"tpl_{uuid.uuid4().hex[:8]}"
+        cloned["id"] = new_id
+        cloned["name"] = f"{tpl.get('name', 'قالب')} (نسخة)"
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        cloned["created_at"] = now
+        cloned["updated_at"] = now
 
-    return save_template(cloned)
+        return save_template(cloned)
 
 
 def delete_template(template_id: str) -> bool:
-    templates = load_templates()
-    target = next((t for t in templates if t.get("id") == template_id), None)
-    filtered = [t for t in templates if t.get("id") != template_id]
-    if len(filtered) == len(templates):
-        return False
-    save_templates_store(filtered, sync=True)
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote templates could not be verified on startup. "
+            "Deletions are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
 
-    # Check if this template used a custom base PDF that is no longer used by any remaining template
-    if target:
-        base_filename = target.get("base_pdf_filename")
-        if base_filename and base_filename != "default_certificate_base.pdf":
-            still_used = any(t.get("base_pdf_filename") == base_filename for t in filtered)
-            if not still_used:
-                # Delete base PDF
-                base_path = get_base_pdf_path(base_filename)
-                if base_path and base_path.exists():
-                    try:
-                        base_path.unlink()
-                    except Exception:
-                        pass
-                    github_sync.delete_file_async(
-                        base_path,
-                        commit_message=f"Auto-sync: delete base PDF {base_filename}",
-                    )
-                # Delete preview
-                preview_filename = Path(base_filename).stem + "_preview.png"
-                preview_path = get_base_preview_path(preview_filename)
-                if preview_path and preview_path.exists():
-                    try:
-                        preview_path.unlink()
-                    except Exception:
-                        pass
-                    github_sync.delete_file_async(
-                        preview_path,
-                        commit_message=f"Auto-sync: delete base preview {preview_filename}",
-                    )
-    return True
+    # FIX 2: Domain-level lock
+    with github_sync.store_lock("templates", TEMPLATES_STORE / ".templates.lock"):
+        templates = load_templates()
+        target = next((t for t in templates if t.get("id") == template_id), None)
+        filtered = [t for t in templates if t.get("id") != template_id]
+        if len(filtered) == len(templates):
+            return False
+
+        # Check if this template used a custom base PDF that is no longer used by any remaining template
+        if target:
+            base_filename = target.get("base_pdf_filename")
+            if base_filename and base_filename != "default_certificate_base.pdf":
+                still_used = any(t.get("base_pdf_filename") == base_filename for t in filtered)
+                if not still_used:
+                    # Delete base PDF from GitHub first, then local disk
+                    base_path = get_base_pdf_path(base_filename)
+                    if base_path and base_path.exists():
+                        github_sync.sync_file_delete(
+                            base_path,
+                            commit_message=f"Auto-sync: delete base PDF {base_filename}",
+                            raise_on_error=False,
+                        )
+                        try:
+                            base_path.unlink()
+                        except Exception:
+                            pass
+                    # Delete preview from GitHub first, then local disk
+                    preview_filename = Path(base_filename).stem + "_preview.png"
+                    preview_path = get_base_preview_path(preview_filename)
+                    if preview_path and preview_path.exists():
+                        github_sync.sync_file_delete(
+                            preview_path,
+                            commit_message=f"Auto-sync: delete base preview {preview_filename}",
+                            raise_on_error=False,
+                        )
+                        try:
+                            preview_path.unlink()
+                        except Exception:
+                            pass
+
+        save_templates_store(filtered, sync=True)
+        return True
 
 
 def save_uploaded_base_pdf(
@@ -306,6 +335,13 @@ def save_uploaded_base_pdf(
     Saves an uploaded real certificate PDF into templates_store/bases/
     Extracts prepress box metadata and renders a 150 DPI page preview for the canvas.
     """
+    # FIX 1: Emergency read-only check
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        raise RuntimeError(
+            "Storage is in read-only emergency mode: remote templates could not be verified on startup. "
+            "Uploads are blocked to prevent data loss. Please trigger a manual sync pull via /api/sync/pull."
+        )
+
     ensure_store_dirs()
     unique_id = uuid.uuid4().hex[:10]
     safe_stem = Path(original_filename).stem.replace(" ", "_")[:30]
@@ -337,15 +373,17 @@ def save_uploaded_base_pdf(
         preview_width = 0
         preview_height = 0
 
-    # Auto-sync uploaded base PDF and preview image to GitHub in background thread
-    github_sync.push_file_async(
+    # Auto-sync uploaded base PDF and preview image to GitHub with verified commits
+    github_sync.sync_file_push(
         target_path,
         commit_message=f"Auto-sync: upload base PDF {filename}",
+        raise_on_error=True,
     )
     if preview_filename and preview_path.exists():
-        github_sync.push_file_async(
+        github_sync.sync_file_push(
             preview_path,
             commit_message=f"Auto-sync: base PDF preview {preview_filename}",
+            raise_on_error=True,
         )
 
     trim_mm = boxes.get("trimbox", {})
@@ -371,19 +409,48 @@ def save_uploaded_base_pdf(
     }
 
 
+def _safe_resolve_file(root_dir: Path, filename: str, allowed_exts: Optional[set] = None) -> Optional[Path]:
+    """
+    Safely resolves a filename relative to root_dir.
+    Rejects path traversal (..), absolute paths, and null bytes.
+    Validates canonical resolved path stays within root_dir.
+    """
+    if not filename or "\0" in filename:
+        return None
+    p = Path(filename)
+    if p.is_absolute() or ".." in p.parts:
+        return None
+    try:
+        root_resolved = root_dir.resolve()
+        candidate = (root_dir / p).resolve()
+        if not candidate.is_relative_to(root_resolved):
+            return None
+        if not candidate.is_file():
+            return None
+        if allowed_exts and candidate.suffix.lower() not in allowed_exts:
+            return None
+        return candidate
+    except Exception:
+        return None
+
+
 def get_base_pdf_path(filename: str) -> Optional[Path]:
-    """Finds base PDF either in bases/ or templates_store/ directly."""
-    p1 = BASES_DIR / filename
-    if p1.exists():
+    """
+    Safely finds base PDF either in bases/ or templates_store/ directly.
+    Guarantees path cannot traverse outside TEMPLATES_STORE and only matches .pdf files.
+    """
+    p1 = _safe_resolve_file(BASES_DIR, filename, allowed_exts={".pdf"})
+    if p1:
         return p1
-    p2 = TEMPLATES_STORE / filename
-    if p2.exists():
+    p2 = _safe_resolve_file(TEMPLATES_STORE, filename, allowed_exts={".pdf"})
+    if p2:
         return p2
     return None
 
 
 def get_base_preview_path(filename: str) -> Optional[Path]:
-    p = BASES_DIR / filename
-    if p.exists():
-        return p
-    return None
+    """
+    Safely finds base preview image strictly in bases/ directory.
+    Guarantees path cannot traverse outside BASES_DIR and only matches .png files.
+    """
+    return _safe_resolve_file(BASES_DIR, filename, allowed_exts={".png"})
