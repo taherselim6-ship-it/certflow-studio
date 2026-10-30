@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import pymupdf
-from engine import pdf_engine
+from engine import pdf_engine, github_sync
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_STORE = BASE_DIR / "templates_store"
@@ -20,18 +20,23 @@ BASES_DIR = TEMPLATES_STORE / "bases"
 TEMPLATES_JSON_PATH = TEMPLATES_STORE / "templates.json"
 
 
-def save_templates_store(templates: List[Dict[str, Any]]) -> None:
+def save_templates_store(templates: List[Dict[str, Any]], sync: bool = True) -> None:
     TEMPLATES_STORE.mkdir(parents=True, exist_ok=True)
     BASES_DIR.mkdir(parents=True, exist_ok=True)
     with open(TEMPLATES_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(templates, f, ensure_ascii=False, indent=2)
+    if sync:
+        github_sync.push_file_async(
+            TEMPLATES_JSON_PATH,
+            commit_message=f"Auto-sync: update templates.json ({len(templates)} templates)",
+        )
 
 
 def ensure_store_dirs() -> None:
     TEMPLATES_STORE.mkdir(parents=True, exist_ok=True)
     BASES_DIR.mkdir(parents=True, exist_ok=True)
     if not TEMPLATES_JSON_PATH.exists():
-        save_templates_store([])
+        save_templates_store([], sync=False)
 
 
 def create_default_template_config() -> Dict[str, Any]:
@@ -42,6 +47,10 @@ def create_default_template_config() -> Dict[str, Any]:
         doc = pdf_engine.create_default_certificate_base()
         doc.save(str(base_file))
         doc.close()
+        github_sync.push_file_async(
+            base_file,
+            commit_message=f"Auto-sync: default base PDF {base_default_name}",
+        )
 
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     return {
@@ -252,10 +261,41 @@ def duplicate_template(template_id: str) -> Optional[Dict[str, Any]]:
 
 def delete_template(template_id: str) -> bool:
     templates = load_templates()
+    target = next((t for t in templates if t.get("id") == template_id), None)
     filtered = [t for t in templates if t.get("id") != template_id]
     if len(filtered) == len(templates):
         return False
-    save_templates_store(filtered)
+    save_templates_store(filtered, sync=True)
+
+    # Check if this template used a custom base PDF that is no longer used by any remaining template
+    if target:
+        base_filename = target.get("base_pdf_filename")
+        if base_filename and base_filename != "default_certificate_base.pdf":
+            still_used = any(t.get("base_pdf_filename") == base_filename for t in filtered)
+            if not still_used:
+                # Delete base PDF
+                base_path = get_base_pdf_path(base_filename)
+                if base_path and base_path.exists():
+                    try:
+                        base_path.unlink()
+                    except Exception:
+                        pass
+                    github_sync.delete_file_async(
+                        base_path,
+                        commit_message=f"Auto-sync: delete base PDF {base_filename}",
+                    )
+                # Delete preview
+                preview_filename = Path(base_filename).stem + "_preview.png"
+                preview_path = get_base_preview_path(preview_filename)
+                if preview_path and preview_path.exists():
+                    try:
+                        preview_path.unlink()
+                    except Exception:
+                        pass
+                    github_sync.delete_file_async(
+                        preview_path,
+                        commit_message=f"Auto-sync: delete base preview {preview_filename}",
+                    )
     return True
 
 
@@ -296,6 +336,17 @@ def save_uploaded_base_pdf(
         preview_filename = ""
         preview_width = 0
         preview_height = 0
+
+    # Auto-sync uploaded base PDF and preview image to GitHub in background thread
+    github_sync.push_file_async(
+        target_path,
+        commit_message=f"Auto-sync: upload base PDF {filename}",
+    )
+    if preview_filename and preview_path.exists():
+        github_sync.push_file_async(
+            preview_path,
+            commit_message=f"Auto-sync: base PDF preview {preview_filename}",
+        )
 
     trim_mm = boxes.get("trimbox", {})
     bleed_offsets = boxes.get("bleed_offsets_mm", {})

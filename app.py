@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from engine import font_manager, trainer_manager, template_manager, data_loader, pdf_engine, batch_exporter
+from engine import font_manager, trainer_manager, template_manager, data_loader, pdf_engine, batch_exporter, github_sync
 from engine.excel_template import generate_standard_excel_template
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -17,7 +17,11 @@ BASE_DIR = Path(__file__).resolve().parent
 for folder in ["fonts", "trainers_store", "templates_store", "exports", "static"]:
     (BASE_DIR / folder).mkdir(parents=True, exist_ok=True)
 
+# Pull/restore latest files from GitHub if configured (Render persistence)
+github_sync.sync_pull_on_startup()
+
 trainer_manager.ensure_store_dirs()
+template_manager.ensure_store_dirs()
 font_manager.ensure_fonts_dir()
 
 app = FastAPI(
@@ -59,7 +63,22 @@ async def get_system_status():
         "fonts_count": len(fonts),
         "trainers_count": len(trainers),
         "templates_count": len(templates),
-        "workspace_ready": True
+        "workspace_ready": True,
+        "github_sync": {
+            "configured": github_sync.is_configured(),
+            "repo": github_sync.get_repo() if github_sync.is_configured() else None,
+            "branch": github_sync.get_branch() if github_sync.is_configured() else None,
+        },
+    }
+
+
+@app.post("/api/sync/pull")
+async def manual_sync_pull():
+    """Manually triggers a pull/sync from GitHub repository."""
+    stats = github_sync.sync_pull_on_startup()
+    return {
+        "message": "تم تنفيذ فحص المزامنة مع GitHub بنجاح",
+        "stats": stats,
     }
 
 

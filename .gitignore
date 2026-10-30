@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# CertFlow temporary export files
+exports/*.zip
+exports/*.pdf
+!exports/.gitkeep
+

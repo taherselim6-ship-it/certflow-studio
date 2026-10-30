@@ -17,6 +17,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 from PIL import Image
 import pymupdf
+from engine import github_sync
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TRAINERS_STORE_DIR = BASE_DIR / "trainers_store"
@@ -111,6 +112,17 @@ def process_vector_pdf_signature(
     pix = page.get_pixmap(alpha=True, dpi=150)
     pix.save(str(thumb_target_path))
 
+    # Auto-sync vector signature files to GitHub in background thread
+    if not prefix.startswith("preview_temp"):
+        github_sync.push_file_async(
+            pdf_target_path,
+            commit_message=f"Auto-sync: vector signature PDF {pdf_filename}",
+        )
+        github_sync.push_file_async(
+            thumb_target_path,
+            commit_message=f"Auto-sync: signature thumbnail {thumb_filename}",
+        )
+
     return {
         "filename": pdf_filename,
         "signature_type": "pdf",
@@ -173,6 +185,11 @@ def process_raster_signature(
             cropped = rgba_img
 
         cropped.save(target_path, format="PNG", optimize=True)
+        if not prefix.startswith("preview_temp"):
+            github_sync.push_file_async(
+                target_path,
+                commit_message=f"Auto-sync: transparent signature PNG {filename}",
+            )
         return {
             "filename": filename,
             "signature_type": "png",
@@ -227,6 +244,11 @@ def process_raster_signature(
         cropped = processed
 
     cropped.save(target_path, format="PNG", optimize=True)
+    if not prefix.startswith("preview_temp"):
+        github_sync.push_file_async(
+            target_path,
+            commit_message=f"Auto-sync: signature PNG {filename}",
+        )
     return {
         "filename": filename,
         "signature_type": "png",
@@ -272,10 +294,15 @@ def load_trainers() -> List[Dict[str, Any]]:
         return []
 
 
-def save_trainers_store(trainers: List[Dict[str, Any]]) -> None:
+def save_trainers_store(trainers: List[Dict[str, Any]], sync: bool = True) -> None:
     ensure_store_dirs()
     with open(TRAINERS_FILE, "w", encoding="utf-8") as f:
         json.dump(trainers, f, ensure_ascii=False, indent=2)
+    if sync:
+        github_sync.push_file_async(
+            TRAINERS_FILE,
+            commit_message=f"Auto-sync: update trainers.json ({len(trainers)} trainers)",
+        )
 
 
 def list_trainers() -> List[Dict[str, Any]]:
@@ -385,6 +412,10 @@ def update_trainer(
                     p.unlink()
                 except Exception:
                     pass
+            github_sync.delete_file_async(
+                p,
+                commit_message=f"Auto-sync: delete old signature {old_filename}",
+            )
             # Check thumbnail file
             thumb_name = p.stem + "_thumb.png"
             p_thumb = SIGNATURES_DIR / thumb_name
@@ -393,6 +424,10 @@ def update_trainer(
                     p_thumb.unlink()
                 except Exception:
                     pass
+                github_sync.delete_file_async(
+                    p_thumb,
+                    commit_message=f"Auto-sync: delete old signature thumbnail {thumb_name}",
+                )
 
         # Save new cleaned signature
         sig_info = save_processed_signature(
@@ -410,7 +445,7 @@ def update_trainer(
 
     trainer["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     trainers[target_idx] = trainer
-    save_trainers_store(trainers)
+    save_trainers_store(trainers, sync=True)
     return trainer
 
 
@@ -437,6 +472,10 @@ def delete_trainer(trainer_id: str) -> bool:
                 sig_path.unlink()
             except Exception:
                 pass
+        github_sync.delete_file_async(
+            sig_path,
+            commit_message=f"Auto-sync: delete signature {sig_filename}",
+        )
         thumb_name = sig_path.stem + "_thumb.png"
         p_thumb = SIGNATURES_DIR / thumb_name
         if p_thumb.exists():
@@ -444,8 +483,12 @@ def delete_trainer(trainer_id: str) -> bool:
                 p_thumb.unlink()
             except Exception:
                 pass
+            github_sync.delete_file_async(
+                p_thumb,
+                commit_message=f"Auto-sync: delete signature thumbnail {thumb_name}",
+            )
 
-    save_trainers_store(remaining)
+    save_trainers_store(remaining, sync=True)
     return True
 
 
