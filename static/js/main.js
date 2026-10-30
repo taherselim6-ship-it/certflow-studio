@@ -2345,16 +2345,17 @@ async function exportBatchSubmit() {
   });
 
   const trainer = activeTrainers.find((t) => t.id === operatorActiveTrainerId);
-  const detectedAppsScript = trainer?.script_url || (trainer?.sheet_url && (trainer.sheet_url.includes("script.google.com") || trainer.sheet_url.includes("script.googleusercontent.com")) ? trainer.sheet_url : "");
-  let appsScriptUrl = (webhookUrl && (webhookUrl.includes("script.google.com") || webhookUrl.includes("script.googleusercontent.com"))) ? webhookUrl : detectedAppsScript;
-  if (!appsScriptUrl) {
+  // Resolve Google Apps Script Web App URL strictly for this trainer (preventing cross-trainer pollution)
+  let appsScriptUrl = "";
+  if (webhookUrl && (webhookUrl.includes("script.google.com") || webhookUrl.includes("script.googleusercontent.com"))) {
+    appsScriptUrl = webhookUrl.trim();
+  } else if (trainer?.script_url && trainer.script_url.trim()) {
+    appsScriptUrl = trainer.script_url.trim();
+  } else if (trainer?.sheet_url && (trainer.sheet_url.includes("script.google.com") || trainer.sheet_url.includes("script.googleusercontent.com"))) {
+    appsScriptUrl = trainer.sheet_url.trim();
+  } else if (!trainer?.sheet_url || !trainer.sheet_url.includes("docs.google.com")) {
+    // Only fall back to global apps script if this trainer doesn't have an independent direct Google Sheet
     appsScriptUrl = getGlobalAppsScriptUrl();
-  }
-  if (!appsScriptUrl) {
-    const trWithScript = activeTrainers.find((t) => t.script_url || (t.sheet_url && (t.sheet_url.includes("script.google.com") || t.sheet_url.includes("script.googleusercontent.com"))));
-    if (trWithScript) {
-      appsScriptUrl = trWithScript.script_url || trWithScript.sheet_url;
-    }
   }
 
   if (appsScriptUrl) {
@@ -2401,6 +2402,15 @@ async function exportBatchSubmit() {
     const exportedCount = response.headers.get("X-Exported-Count") || formattedRecords.length;
     const warningsCount = response.headers.get("X-Warnings-Count") || "0";
     const isAppsScriptSynced = response.headers.get("X-Apps-Script-Synced") === "true";
+    const isAppsScriptSkipped = response.headers.get("X-Apps-Script-Skipped") === "true";
+    let appsScriptError = "";
+    try {
+      const rawErr = response.headers.get("X-Apps-Script-Error") || "";
+      appsScriptError = rawErr ? decodeURIComponent(rawErr) : "";
+    } catch (_) {
+      appsScriptError = response.headers.get("X-Apps-Script-Error") || "";
+    }
+    const appsScriptUpdated = parseInt(response.headers.get("X-Apps-Script-Updated") || "0", 10);
 
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
@@ -2428,10 +2438,28 @@ async function exportBatchSubmit() {
     // Re-apply sheet filters to update counter and hide issued records
     applySheetFilters();
 
-    if (isAppsScriptSynced || appsScriptUrl) {
-      setTimeout(() => {
-        showToast(`تم تحديث اسم القالب "${operatorActiveTemplate.name}" في Google Apps Script بنجاح`, "success");
-      }, 1000);
+    // Truthful Apps Script Sync Feedback (no false positives, FIX 5)
+    if (appsScriptUrl) {
+      if (isAppsScriptSkipped) {
+        setTimeout(() => {
+          showToast("تنبيه: لم يتم تحديث قوقل شيت لعدم وجود حقل اسم متدرب في السجلات المحددة", "info");
+        }, 1000);
+      } else if (isAppsScriptSynced) {
+        if (appsScriptUpdated > 0) {
+          setTimeout(() => {
+            showToast(`تم تحديث اسم القالب "${operatorActiveTemplate.name}" في قوقل شيت بنجاح (${appsScriptUpdated} متدرب)`, "success");
+          }, 1000);
+        } else {
+          setTimeout(() => {
+            showToast("تنبيه: تم الاتصال بـ Google Apps Script ولكن لم يتم العثور على أي من الأسماء في قوقل شيت (0 متدرب)", "warning");
+          }, 1000);
+        }
+      } else {
+        setTimeout(() => {
+          const reason = appsScriptError || "تحقق من إعدادات النشر وصلاحيات المشاركة في قوقل شيت";
+          showToast(`تنبيه: تعذر تحديث قوقل شيت عبر Apps Script: ${reason}`, "error");
+        }, 1200);
+      }
     }
 
     if (parseInt(warningsCount, 10) > 0) {

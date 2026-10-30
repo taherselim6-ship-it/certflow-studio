@@ -1,5 +1,7 @@
 import io
 import os
+import logging
+import urllib.parse
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import httpx
@@ -7,11 +9,34 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Response, st
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.background import BackgroundTask
 
 from engine import font_manager, trainer_manager, template_manager, data_loader, pdf_engine, batch_exporter, github_sync
 from engine.excel_template import generate_standard_excel_template
 
+logger = logging.getLogger("certflow.app")
+
 BASE_DIR = Path(__file__).resolve().parent
+
+def safe_cleanup_file(path_str: str) -> None:
+    """Safely cleans up temporary export files after response has finished streaming (FIX 4)."""
+    try:
+        p = Path(path_str)
+        if p.exists() and p.is_file():
+            p.unlink()
+            logger.info(f"[Export Cleanup] Successfully removed temporary export file: {p.name}")
+    except Exception as e:
+        logger.warning(f"[Export Cleanup Warning] Could not remove {path_str}: {e}")
+
+def check_storage_write_allowed() -> None:
+    """Blocks persistent mutations when GitHub storage is configured but startup hydration was degraded (FIX 1)."""
+    if github_sync.is_configured() and not github_sync.is_hydration_healthy():
+        status_info = github_sync.get_hydration_status()
+        err_detail = status_info.get("error") or "Startup hydration was incomplete or degraded"
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"خدمة التخزين في وضع القراءة فقط: فشلت المزامنة الأولية مع GitHub ({err_detail}). تم حظر التعديلات لحماية البيانات التاريخية. يرجى تجربة إعادة المزامنة عبر /api/sync/pull.",
+        )
 
 # Ensure runtime directories exist
 for folder in ["fonts", "trainers_store", "templates_store", "exports", "static"]:
@@ -66,8 +91,9 @@ async def get_system_status():
         "workspace_ready": True,
         "github_sync": {
             "configured": github_sync.is_configured(),
-            "repo": github_sync.get_repo() if github_sync.is_configured() else None,
+            "repo": github_sync.get_data_repo() if github_sync.is_configured() else None,
             "branch": github_sync.get_branch() if github_sync.is_configured() else None,
+            "hydration": github_sync.get_hydration_status(),
         },
     }
 
@@ -76,6 +102,10 @@ async def get_system_status():
 async def manual_sync_pull():
     """Manually triggers a pull/sync from GitHub repository."""
     stats = github_sync.sync_pull_on_startup()
+    if stats.get("status") == "ok":
+        trainer_manager.ensure_store_dirs()
+        template_manager.ensure_store_dirs()
+        font_manager.ensure_fonts_dir()
     return {
         "message": "تم تنفيذ فحص المزامنة مع GitHub بنجاح",
         "stats": stats,
@@ -97,6 +127,7 @@ async def upload_fonts(
     files: Optional[list[UploadFile]] = File(None),
     file: Optional[UploadFile] = File(None)
 ):
+    check_storage_write_allowed()
     upload_list = []
     if files:
         upload_list.extend(files)
@@ -141,6 +172,7 @@ async def upload_fonts(
 
 @app.delete("/api/fonts/{filename}")
 async def delete_font(filename: str):
+    check_storage_write_allowed()
     success = font_manager.delete_font(filename)
     if not success:
         raise HTTPException(status_code=404, detail="ملف الخط غير موجود")
@@ -189,6 +221,7 @@ async def create_trainer(
     signature_file: Optional[UploadFile] = File(None),
     script_url: str = Form("")
 ):
+    check_storage_write_allowed()
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="اسم المدرب حقل إلزامي")
 
@@ -228,36 +261,48 @@ async def update_trainer(
     signature_file: Optional[UploadFile] = File(None),
     script_url: Optional[str] = Form(None)
 ):
+    check_storage_write_allowed()
     sig_bytes = None
     if signature_file and signature_file.filename:
         sig_bytes = await signature_file.read()
 
-    record = trainer_manager.update_trainer(
-        trainer_id=trainer_id,
-        name=name,
-        sheet_url=sheet_url,
-        name_col=name_col,
-        time_col=time_col,
-        scale=scale,
-        signature_bytes=sig_bytes,
-        script_url=script_url
-    )
+    try:
+        record = trainer_manager.update_trainer(
+            trainer_id=trainer_id,
+            name=name,
+            sheet_url=sheet_url,
+            name_col=name_col,
+            time_col=time_col,
+            scale=scale,
+            signature_bytes=sig_bytes,
+            script_url=script_url
+        )
 
-    if not record:
-        raise HTTPException(status_code=404, detail="ملف المدرب غير موجود")
+        if not record:
+            raise HTTPException(status_code=404, detail="ملف المدرب غير موجود")
 
-    return {
-        "message": "تم تحديث بيانات المدرب بنجاح",
-        "trainer": record
-    }
+        return {
+            "message": "تم تحديث بيانات المدرب بنجاح",
+            "trainer": record
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء تحديث بيانات المدرب: {str(e)}")
 
 
 @app.delete("/api/trainers/{trainer_id}")
 async def delete_trainer(trainer_id: str):
-    success = trainer_manager.delete_trainer(trainer_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="ملف المدرب غير موجود")
-    return {"message": "تم حذف ملف المدرب بنجاح", "trainer_id": trainer_id}
+    check_storage_write_allowed()
+    try:
+        success = trainer_manager.delete_trainer(trainer_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="ملف المدرب غير موجود")
+        return {"message": "تم حذف ملف المدرب بنجاح", "trainer_id": trainer_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء حذف المدرب: {str(e)}")
 
 
 @app.get("/api/trainers/signature/{filename}")
@@ -480,9 +525,12 @@ async def get_template(template_id: str):
 @app.post("/api/templates")
 async def save_template_endpoint(template: Dict[str, Any]):
     """Creates or updates a certificate template configuration."""
+    check_storage_write_allowed()
     try:
         saved = template_manager.save_template(template)
         return {"message": "تم حفظ القالب بنجاح", "template": saved}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"فشل حفظ القالب: {str(e)}")
 
@@ -490,19 +538,31 @@ async def save_template_endpoint(template: Dict[str, Any]):
 @app.post("/api/templates/{template_id}/duplicate")
 async def duplicate_template_endpoint(template_id: str):
     """Clones an existing template with a new ID."""
-    cloned = template_manager.duplicate_template(template_id)
-    if not cloned:
-        raise HTTPException(status_code=404, detail="القالب غير موجود للنسخ")
-    return {"message": "تم نسخ القالب بنجاح", "template": cloned}
+    check_storage_write_allowed()
+    try:
+        cloned = template_manager.duplicate_template(template_id)
+        if not cloned:
+            raise HTTPException(status_code=404, detail="القالب غير موجود للنسخ")
+        return {"message": "تم نسخ القالب بنجاح", "template": cloned}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"فشل نسخ القالب: {str(e)}")
 
 
 @app.delete("/api/templates/{template_id}")
 async def delete_template_endpoint(template_id: str):
     """Deletes a certificate template."""
-    success = template_manager.delete_template(template_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="القالب غير موجود")
-    return {"message": "تم حذف القالب بنجاح", "template_id": template_id}
+    check_storage_write_allowed()
+    try:
+        success = template_manager.delete_template(template_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="القالب غير موجود")
+        return {"message": "تم حذف القالب بنجاح", "template_id": template_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء حذف القالب: {str(e)}")
 
 
 @app.post("/api/templates/upload-base")
@@ -511,6 +571,7 @@ async def upload_base_pdf(file: UploadFile = File(...)):
     Uploads a real user certificate PDF, extracts TrimBox & BleedBox metadata,
     and generates a high-res preview image for the visual canvas.
     """
+    check_storage_write_allowed()
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="الملف فارغ")
@@ -675,21 +736,62 @@ async def sync_apps_script_endpoint(req: AppsScriptSyncRequest):
     if not clean_url:
         raise HTTPException(status_code=400, detail="رابط Google Apps Script مطلوب")
 
+    clean_sheet_url = req.sheet_url.strip() if req.sheet_url else ""
+    if "script.google.com" in clean_sheet_url or "script.googleusercontent.com" in clean_sheet_url:
+        clean_sheet_url = ""
+
     try:
         payload = {
-            "sheet_url": req.sheet_url or "",
+            "sheet_url": clean_sheet_url,
             "updates": req.updates,
             "template_name": req.template_name,
-            "count": len(req.updates)
+            "count": len(req.updates),
         }
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers={"Content-Type": "application/json"}) as client:
-            res = await client.post(clean_url, json=payload)
-            return {
-                "status": "success",
-                "script_status": res.status_code,
-                "updated_count": len(req.updates),
-                "message": f"تم إرسال {len(req.updates)} تحديث بنجاح لتطبيق Google Apps Script"
-            }
+        timeout_cfg = httpx.Timeout(40.0, connect=15.0)
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "CertFlow-Studio/1.0",
+            "Accept": "application/json, text/plain, */*",
+        }
+        async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
+            res = await client.post(clean_url, json=payload, headers=headers)
+
+        resp_text = (res.text or "").strip()
+        if res.status_code == 200 and (resp_text.lower().startswith("<!doctype html") or "<html" in resp_text.lower()[:100]):
+            raise HTTPException(
+                status_code=400,
+                detail="تطبيق Google Apps Script يتطلب تسجيل الدخول. يرجى إعادة النشر مع ضبط: 'Who has access: Anyone'."
+            )
+
+        if res.status_code not in (200, 201, 302):
+            raise HTTPException(
+                status_code=400,
+                detail=f"فشل الاتصال بـ Google Apps Script (رمز {res.status_code}): {resp_text[:150]}"
+            )
+
+        updated_count = len(req.updates)
+        try:
+            res_data = res.json()
+            if isinstance(res_data, dict):
+                if res_data.get("status") == "error":
+                    raise HTTPException(
+                        status_code=400,
+                        detail=res_data.get("message") or "أرجع تطبيق Google Apps Script رسالة خطأ أثناء التحديث"
+                    )
+                updated_count = int(res_data.get("updated", res_data.get("updated_count", len(req.updates))))
+        except json.JSONDecodeError:
+            pass
+
+        return {
+            "status": "success",
+            "script_status": res.status_code,
+            "updated_count": updated_count,
+            "message": f"تم تحديث {updated_count} متدرب في Google Sheets بنجاح"
+        }
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="انتهت مهلة استجابة Google Apps Script (تجاوز 40 ثانية أثناء الكتابة)")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"فشل إرسال التحديثات لـ Google Apps Script: {e}")
 
@@ -710,7 +812,7 @@ async def export_batch_endpoint(req: BatchExportRequest):
         if not req.records:
             raise HTTPException(status_code=400, detail="قائمة سجلات البيانات فارغة")
 
-        # Resolve target Google Apps Script URL and Sheet URL
+        # Resolve target Google Apps Script URL and Sheet URL strictly for this trainer
         target_apps_script = req.apps_script_url
         target_sheet_url = req.sheet_url
         target_trainer_id = req.trainer_id or (req.records[0].get("trainer_id") if req.records else None)
@@ -724,13 +826,6 @@ async def export_batch_endpoint(req: BatchExportRequest):
                         target_apps_script = t["script_url"]
                     elif t.get("sheet_url") and ("script.google.com" in t["sheet_url"] or "script.googleusercontent.com" in t["sheet_url"]):
                         target_apps_script = t["sheet_url"]
-
-        # If apps_script is still not resolved, check if any trainer has a script_url configured
-        if not target_apps_script:
-            for trainer in trainer_manager.load_trainers():
-                if trainer.get("script_url"):
-                    target_apps_script = trainer["script_url"]
-                    break
 
         result = batch_exporter.execute_batch_export(
             template_config=config,
@@ -748,17 +843,24 @@ async def export_batch_endpoint(req: BatchExportRequest):
         filename = result["filename"]
         media_type = result["media_type"]
         apps_script_synced = "true" if result.get("apps_script_synced") else "false"
+        apps_script_updated = str(result.get("apps_script_updated", 0))
+        apps_script_skipped = "true" if result.get("apps_script_skipped") else "false"
+        apps_script_error = urllib.parse.quote(result.get("apps_script_error") or "")
 
         return FileResponse(
             path=file_path,
             filename=filename,
             media_type=media_type,
+            background=BackgroundTask(safe_cleanup_file, file_path),
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
-                "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced",
+                "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced, X-Apps-Script-Updated, X-Apps-Script-Skipped, X-Apps-Script-Error",
                 "X-Exported-Count": str(result["exported_count"]),
                 "X-Warnings-Count": str(result["warnings_count"]),
                 "X-Apps-Script-Synced": apps_script_synced,
+                "X-Apps-Script-Updated": apps_script_updated,
+                "X-Apps-Script-Skipped": apps_script_skipped,
+                "X-Apps-Script-Error": apps_script_error,
             }
         )
     except HTTPException:
