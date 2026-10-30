@@ -259,5 +259,137 @@
     "id": "tpl_c1b658bd",
     "created_at": "2026-10-29 20:26:53",
     "updated_at": "2026-10-29 20:32:08"
+  },
+  {
+    "name": "Empowering Your Team Through Effective Leadership",
+    "company": "LTC",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Trainee Name",
+        "x_mm": 29.7,
+        "y_mm": 121,
+        "width_mm": 156.5,
+        "height_mm": 24,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 32,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 74,
+        "y_mm": 188,
+        "width_mm": 92,
+        "height_mm": 14,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 13,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 82,
+        "y_mm": 211.5,
+        "width_mm": 53.5,
+        "height_mm": 24.5,
+        "baseline_offset_mm": 0,
+        "scale": 100,
+        "blend_multiply": true
+      }
+    ],
+    "base_pdf_filename": "base_31eb9ccd35_Empowering_Your_Team_Through_E.pdf",
+    "base_pdf_url": "/api/templates/base/base_31eb9ccd35_Empowering_Your_Team_Through_E.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_31eb9ccd35_Empowering_Your_Team_Through_E_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": false
+    },
+    "page_setup": {
+      "width_mm": 215.9,
+      "height_mm": 279.4,
+      "bleed_mm": 0,
+      "is_landscape": false
+    },
+    "id": "tpl_bed77e8a",
+    "created_at": "2026-10-30 20:17:16",
+    "updated_at": "2026-10-30 20:17:16"
   }
 ]
