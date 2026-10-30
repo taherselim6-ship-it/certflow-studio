@@ -2,7 +2,7 @@
   {
     "id": "tr_9259227d",
     "name": "Seif El Akkad",
-    "sheet_url": "https://script.google.com/macros/s/AKfycbyx3ycABODVkLkbNc6IcfAWdRhEZxf4E2sJmseLUdbD0zCKQh19Wuqm9T9o0RI8yDAs/exec",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1lEExsF073FIX9fOZkupQbO1hEBZTGQqzXDUkTxuzCpE/edit?gid=0#gid=0",
     "name_col": "Name (will be shown on your certificate)",
     "time_col": "Timestamp",
     "scale": 100.0,
@@ -11,7 +11,8 @@
     "signature_width": 610,
     "signature_height": 236,
     "created_at": "2026-10-29 01:21:56",
-    "updated_at": "2026-10-29 23:22:52"
+    "updated_at": "2026-10-30 20:20:14",
+    "script_url": "https://script.google.com/macros/s/AKfycbyx3ycABODVkLkbNc6IcfAWdRhEZxf4E2sJmseLUdbD0zCKQh19Wuqm9T9o0RI8yDAs/exec"
   },
   {
     "id": "tr_1d3f495f",
