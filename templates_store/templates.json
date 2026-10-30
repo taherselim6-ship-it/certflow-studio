@@ -1,0 +1,263 @@
+[
+  {
+    "name": "BME certificate",
+    "company": "BLANCHARD",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Taher ",
+        "x_mm": 31.2,
+        "y_mm": 69,
+        "width_mm": 217,
+        "height_mm": 57,
+        "font_family": "GE SS Bold",
+        "english_font": "Myriad Pro Semibold",
+        "font_size": 32,
+        "color": "#004B87",
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 210,
+        "y_mm": 156.5,
+        "width_mm": 57,
+        "height_mm": 8.5,
+        "font_family": "Cairo Regular",
+        "english_font": "Helvetica Regular",
+        "font_size": 13,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "top",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0,
+        "direction": "ltr",
+        "is_locked": false
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 214,
+        "y_mm": 137,
+        "width_mm": 51,
+        "height_mm": 20,
+        "baseline_offset_mm": 0,
+        "scale": 100,
+        "blend_multiply": true
+      }
+    ],
+    "base_pdf_filename": "base_741d6bd3c1_BME_certificate.pdf",
+    "base_pdf_url": "/api/templates/base/base_741d6bd3c1_BME_certificate.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_741d6bd3c1_BME_certificate_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": true
+    },
+    "page_setup": {
+      "width_mm": 279.4,
+      "height_mm": 215.9,
+      "bleed_mm": 0,
+      "is_landscape": true
+    },
+    "id": "tpl_2afce9d1",
+    "created_at": "2026-10-29 15:49:09",
+    "updated_at": "2026-10-29 16:08:39"
+  },
+  {
+    "name": "COACHING FOR MANAGEMENT",
+    "company": "BLANCHARD",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "اسم المتدرب",
+        "x_mm": 31,
+        "y_mm": 68,
+        "width_mm": 217,
+        "height_mm": 59,
+        "font_family": "Cairo Regular",
+        "english_font": "Helvetica Regular",
+        "font_size": 32,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 210.5,
+        "y_mm": 156.5,
+        "width_mm": 55.5,
+        "height_mm": 11.5,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 13,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "top",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 210,
+        "y_mm": 138.5,
+        "width_mm": 56,
+        "height_mm": 17,
+        "baseline_offset_mm": 0,
+        "scale": 100,
+        "blend_multiply": true
+      }
+    ],
+    "base_pdf_filename": "base_3dd1b78708_COACHING_FOR_MANAGEMENT.pdf",
+    "base_pdf_url": "/api/templates/base/base_3dd1b78708_COACHING_FOR_MANAGEMENT.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_3dd1b78708_COACHING_FOR_MANAGEMENT_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": true
+    },
+    "page_setup": {
+      "width_mm": 279.4,
+      "height_mm": 215.9,
+      "bleed_mm": 0,
+      "is_landscape": true
+    },
+    "id": "tpl_c1b658bd",
+    "created_at": "2026-10-29 20:26:53",
+    "updated_at": "2026-10-29 20:32:08"
+  }
+]

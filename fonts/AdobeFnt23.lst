@@ -1,0 +1,112 @@
+%!Adobe-FontList 1.23
+%Locale:0x409
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:Invalid
+OutlineFileName:/Users/taher/Desktop/Data/LTC/certificate/english/Blancherd/BME certificate New Logo Folder/Document fonts/AdobeFnt23.lst
+FileLength:2700
+FileModTime:716140929
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:BarlowCondensed-SemiBold
+FamilyName:Barlow Condensed
+StyleName:SemiBold
+MenuName:Barlow Condensed SemiBold
+StyleBits:0
+WeightClass:600
+WidthClass:3
+AngleClass:0
+FullName:Barlow Condensed SemiBold
+WritingScript:Roman
+OutlineFileName:/Users/taher/Desktop/Data/LTC/certificate/english/Blancherd/BME certificate New Logo Folder/Document fonts/BarlowCondensed-SemiBold.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:103856
+FileModTime:716137745
+NameArray:0,Win,1,Barlow Condensed SemiBold
+NameArray:0,Win,16,Barlow Condensed
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Helvetica
+FamilyName:Helvetica
+StyleName:Regular
+MenuName:Helvetica
+StyleBits:0
+WeightClass:400
+WidthClass:5
+AngleClass:0
+FullName:Helvetica
+WritingScript:Roman
+OutlineFileName:/Users/taher/Desktop/Data/LTC/certificate/english/Blancherd/BME certificate New Logo Folder/Document fonts/Helvetica.ttf
+DataFormat:sfntData
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:83644
+FileModTime:716137743
+NameArray:0,Mac,4,Helvetica
+NameArray:0,Win,1,Helvetica
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:Type1
+FontName:MyriadPro-Regular
+FamilyName:Myriad Pro
+StyleName:Regular
+MenuName:Myriad Pro
+StyleBits:0
+WeightClass:400
+WidthClass:5
+AngleClass:0
+FullName:Myriad Pro
+WritingScript:Roman
+OutlineFileName:/Users/taher/Desktop/Data/LTC/certificate/english/Blancherd/BME certificate New Logo Folder/Document fonts/MyriadPro-Regular.otf
+DataFormat:sfntData
+UsesStandardEncoding:yes
+isCFF:yes
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:79364
+FileModTime:716137744
+NameArray:0,Mac,4,Myriad Pro
+NameArray:0,Win,1,Myriad Pro
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:Type1
+FontName:MyriadPro-Semibold
+FamilyName:Myriad Pro
+StyleName:Semibold
+MenuName:Myriad Pro Light
+StyleBits:2
+WeightClass:600
+WidthClass:5
+AngleClass:0
+FullName:Myriad Pro Semibold
+WritingScript:Roman
+OutlineFileName:/Users/taher/Desktop/Data/LTC/certificate/english/Blancherd/BME certificate New Logo Folder/Document fonts/MyriadPro-Semibold.otf
+DataFormat:sfntData
+UsesStandardEncoding:yes
+isCFF:yes
+hasSVG:no
+hasCOLR:no
+VariableFontType:NonVariableFont
+FileLength:80696
+FileModTime:716137744
+NameArray:0,Mac,4,Myriad Pro Semibold
+NameArray:0,Win,1,Myriad Pro Light
+NameArray:0,Win,16,Myriad Pro
+%EndFont
+

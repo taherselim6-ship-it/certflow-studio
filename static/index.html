@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="page_title">CertFlow Studio | منصة الشهادات الطباعية</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: '#004B87',
+              secondary: '#49A8DE',
+              success: '#B5D353',
+              warning: '#F8B145',
+              accent: '#C65D9A',
+              workspace: '#F4F7FA',
+              cards: '#FFFFFF',
+              slate: '#1E293B',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/custom.css">
+</head>
+<body class="bg-brand-workspace text-brand-slate h-screen w-screen overflow-hidden flex antialiased selection:bg-brand-secondary selection:text-white">
+
+  <!-- ========================================================== -->
+  <!-- VERTICAL APP SIDEBAR (#004B87 Deep Navy - Zero Redundancy) -->
+  <!-- ========================================================== -->
+  <aside id="app-sidebar" class="w-56 shrink-0 h-full bg-brand-primary text-white flex flex-col justify-between border-e border-blue-900/40 shadow-xl z-40 select-none">
+    
+    <!-- Top Section: Brand & Navigation Items -->
+    <div class="flex flex-col">
+      <!-- App Brand Title (No company name) -->
+      <div class="p-4 border-b border-white/10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 shadow-inner shrink-0">
+          <i data-lucide="award" class="w-6 h-6 text-brand-secondary"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-sm font-bold tracking-tight text-white leading-tight truncate">CertFlow Studio</h1>
+          <p class="text-[10px] text-blue-200/80 truncate" data-i18n="app_subtitle">منصة الشهادات الطباعية</p>
+        </div>
+      </div>
+
+      <!-- Core Navigation (Each action ONCE) -->
+      <nav class="p-3 space-y-1.5">
+        <!-- 1. Operator Platform (Default active view on load) -->
+        <button id="nav-operator-btn" onclick="switchMode('operator')" class="w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-3 bg-brand-secondary text-white shadow-sm whitespace-nowrap">
+          <i data-lucide="printer" class="w-4 h-4 shrink-0"></i>
+          <span class="truncate" data-i18n="nav_operator">منصة الموظف</span>
+        </button>
+
+        <!-- 2. Designer Studio -->
+        <button id="nav-designer-btn" onclick="switchMode('designer')" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center gap-3 text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap">
+          <i data-lucide="palette" class="w-4 h-4 shrink-0"></i>
+          <span class="truncate" data-i18n="nav_designer">استوديو المصمم</span>
+        </button>
+
+        <!-- Divider -->
+        <div class="my-2 border-t border-white/10"></div>
+
+        <!-- 3. Trainers & Signatures Modal Trigger -->
+        <button onclick="openTrainersModal()" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center justify-between text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="إدارة ملفات وتواقيع المدربين" data-i18n-title="tip_manage_trainers">
+          <div class="flex items-center gap-3 min-w-0">
+            <i data-lucide="user-check" class="w-4 h-4 text-brand-secondary shrink-0"></i>
+            <span class="truncate" data-i18n="nav_trainers">المدربين والتواقيع</span>
+          </div>
+          <span id="sidebar-trainer-count" class="bg-brand-secondary/30 text-brand-secondary text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+        </button>
+
+        <!-- 4. Excel Template Download (1-click direct link) -->
+        <a href="/api/excel-template" download="CertFlow_Standard_Template.xlsx" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center gap-3 text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="تحميل قالب الإكسل المعتمد" data-i18n-title="tip_download_excel">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-success shrink-0"></i>
+          <span class="truncate" data-i18n="nav_excel_template">قالب الإكسل</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Bottom Section: Language Switcher & System Status -->
+    <div class="p-3 border-t border-white/10 flex flex-col gap-2">
+      <!-- Language Switcher Button -->
+      <button id="lang-toggle-btn" onclick="toggleLanguage()" class="w-full px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-white transition flex items-center justify-between whitespace-nowrap" title="Switch Language / تغيير اللغة">
+        <div class="flex items-center gap-2">
+          <i data-lucide="languages" class="w-4 h-4 text-brand-secondary"></i>
+          <span data-i18n="btn_language">اللغة</span>
+        </div>
+        <span id="lang-label" class="bg-brand-secondary text-white text-[10px] px-2 py-0.5 rounded font-mono font-bold">EN</span>
+      </button>
+
+      <!-- System Online Indicator -->
+      <div class="px-2 py-1 flex items-center gap-2 text-[10px] text-blue-200/70 whitespace-nowrap">
+        <span class="w-2 h-2 rounded-full bg-brand-success pulse-indicator"></span>
+        <span class="truncate" data-i18n="sidebar_system_ready">محرك Prepress (300 DPI)</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================================================== -->
+  <!-- MAIN APP CONTENT CONTAINER                                 -->
+  <!-- ========================================================== -->
+  <div id="app-main-content" class="flex-1 h-full overflow-hidden flex flex-col relative">
+
+    <!-- ========================================================== -->
+    <!-- VIEW 1: OPERATOR WORKSPACE (Canvas-First Interactive Studio) -->
+    <!-- ========================================================== -->
+    <section id="view-operator" class="w-full h-full flex flex-row overflow-hidden bg-slate-100/90 relative">
+      
+      <!-- Center/Left: Live Certificate Preview Canvas (80% Workspace) -->
+      <div class="flex-1 h-full flex flex-col overflow-hidden relative">
+        
+        <!-- Canvas Top Bar: Record Switcher & Trainee Navigation (Unified Deep Navy Styling) -->
+        <div class="min-h-[3.5rem] h-auto py-2 bg-brand-primary text-white px-3 sm:px-6 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0 border-b border-blue-900/50 shadow-sm z-20">
+          
+          <!-- Record Navigator Buttons & Widest Name -->
+          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button id="op-btn-prev-record" onclick="prevRecord()" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/15 text-xs font-bold flex items-center gap-1 transition" title="السجل السابق" data-i18n-title="tip_prev_record">
+              <i data-lucide="chevron-right" class="w-4 h-4 rtl:rotate-0 rotate-180 text-brand-secondary"></i>
+              <span class="hidden sm:inline" data-i18n="op_btn_prev">السابق</span>
+            </button>
+
+            <div class="px-3 py-1.5 rounded-lg bg-black/25 border border-white/15 text-xs font-mono font-bold text-white flex items-center gap-1.5 whitespace-nowrap">
+              <i data-lucide="users" class="w-3.5 h-3.5 text-brand-secondary"></i>
+              <span id="op-record-counter">سجل 0 من 0</span>
+            </div>
+
+            <button id="op-btn-next-record" onclick="nextRecord()" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/15 text-xs font-bold flex items-center gap-1 transition" title="السجل التالي" data-i18n-title="tip_next_record">
+              <span class="hidden sm:inline" data-i18n="op_btn_next">التالي</span>
+              <i data-lucide="chevron-left" class="w-4 h-4 rtl:rotate-0 rotate-180 text-brand-secondary"></i>
+            </button>
+
+            <!-- Jump to Widest Name Button -->
+            <button id="op-btn-widest-name" onclick="jumpToWidestName()" class="px-2.5 py-1.5 rounded-lg bg-brand-warning/20 hover:bg-brand-warning/30 text-amber-200 border border-brand-warning/40 text-xs font-bold flex items-center gap-1 transition whitespace-nowrap" title="الانتقال لأطول اسم لاختبار أقصى اتساع طباعي" data-i18n-title="tip_widest_name">
+              <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-brand-warning"></i>
+              <span class="hidden md:inline" data-i18n="op_btn_widest">أطول اسم</span>
+            </button>
+
+            <!-- Trainee Search / Quick Jump Dropdown -->
+            <div class="relative ms-1 hidden lg:block">
+              <select id="op-trainee-jump-select" onchange="jumpToRecord(this.value)" class="bg-black/25 hover:bg-black/35 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[180px] max-w-[260px] truncate">
+                <option value="" data-i18n="op_jump_placeholder">بحث / اختيار متدرب...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Active Info Strip (Template | Trainer | Date) & Prepress Status Badges -->
+          <div class="flex items-center gap-2 shrink-0">
+            <div class="hidden xl:flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/15 text-xs text-white">
+              <span class="font-bold text-white truncate max-w-[340px]" id="op-top-tpl-name" title="اسم القالب" data-i18n-title="tip_tpl_name">—</span>
+              <span class="text-white/30">|</span>
+              <span class="font-bold text-white/90 truncate max-w-[110px]" id="op-top-trainer-name" title="المدرب" data-i18n-title="tip_trainer_name">المدرب المعتمد</span>
+              <span class="text-white/30">|</span>
+              <span class="font-bold text-white/80 font-mono text-[11px]" id="op-top-date" title="تاريخ الشهادة" data-i18n-title="tip_cert_date">2026-10-29</span>
+            </div>
+
+            <!-- Active Trainee Name badge on medium screens -->
+            <div class="hidden md:flex xl:hidden items-center gap-1.5 bg-white/10 text-white border border-white/15 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">
+              <i data-lucide="user" class="w-3.5 h-3.5 text-brand-secondary shrink-0"></i>
+              <span id="op-active-trainee-name" class="whitespace-nowrap">اسم المتدرب</span>
+            </div>
+
+            <span id="op-active-shrink-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-black/25 text-white/80 font-bold border border-white/15 whitespace-nowrap" data-i18n="badge_optimal_fit">
+              بانتظار تحديد القالب
+            </span>
+          </div>
+
+          <!-- Canvas Controls: Fit & Refresh -->
+          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button onclick="fitOperatorCanvasToScreen()" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/15 text-xs font-bold flex items-center gap-1 transition" title="ملاءمة الشاشة" data-i18n-title="op_btn_fit">
+              <i data-lucide="maximize" class="w-3.5 h-3.5 text-brand-secondary"></i>
+              <span class="hidden sm:inline" data-i18n="op_btn_fit">ملاءمة الشاشة</span>
+            </button>
+            <button onclick="refreshOperatorCanvas(true)" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/15 transition" title="تحديث المعاينة" data-i18n-title="tip_refresh_preview">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-brand-secondary"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Live Interactive Canvas Body (Fit-to-Screen) -->
+        <div id="operator-canvas-container" class="flex-1 relative bg-slate-200/90 flex items-center justify-center p-3 sm:p-6 overflow-hidden select-none">
+          
+          <!-- Loading Overlay -->
+          <div id="op-canvas-loading" class="absolute inset-0 bg-slate-900/20 backdrop-blur-xs flex items-center justify-center z-30 hidden">
+            <div class="bg-white px-5 py-3 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-3 text-xs font-bold text-brand-primary">
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-brand-secondary"></i>
+              <span id="op-canvas-loading-text" data-i18n="op_canvas_loading_text">جاري رندرة الشهادة بمحرك Prepress 300 DPI...</span>
+            </div>
+          </div>
+
+          <!-- Guided Empty State Card (Visible when no template is selected) -->
+          <div id="op-empty-state" class="relative z-10 max-w-lg w-full bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-5 animate-fade-in">
+            <div class="w-16 h-16 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center mx-auto shadow-inner">
+              <i data-lucide="award" class="w-8 h-8 text-brand-primary"></i>
+            </div>
+            
+            <div class="space-y-1.5">
+              <h3 class="text-base sm:text-lg font-black text-slate-800" data-i18n="op_empty_state_title">بانتظار اختيار قالب الشهادة</h3>
+              <p class="text-xs text-slate-500 leading-relaxed" data-i18n="op_empty_state_desc">يرجى تحديد الجهة والقالب من الشريط الجانبي لبدء معاينة ورندرة الشهادات الطباعية بدقة 300 DPI.</p>
+            </div>
+
+            <!-- 2-Step Interactive Guide Pills -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-start">
+              <div id="op-step-company-box" class="p-3 rounded-2xl border border-amber-300 bg-amber-50/90 transition-all flex items-start gap-2.5 ring-2 ring-amber-300/40 animate-pulse">
+                <div id="op-step-company-icon" class="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs font-black shrink-0">1</div>
+                <div class="min-w-0">
+                  <div class="text-[11px] font-bold text-slate-800" data-i18n="op_step1_label">الخطوة 1: اختيار الشركة</div>
+                  <div id="op-step-company-status" class="text-[10px] text-amber-800 font-bold truncate">ابدأ باختيار الشركة من القائمة</div>
+                </div>
+              </div>
+
+              <div id="op-step-template-box" class="p-3 rounded-2xl border border-slate-200 bg-slate-50 transition-all flex items-start gap-2.5 opacity-60">
+                <div id="op-step-template-icon" class="w-6 h-6 rounded-lg bg-slate-300 text-slate-600 flex items-center justify-center text-xs font-black shrink-0">2</div>
+                <div class="min-w-0">
+                  <div class="text-[11px] font-bold text-slate-800" data-i18n="op_step2_label">الخطوة 2: اختيار القالب</div>
+                  <div id="op-step-template-status" class="text-[10px] text-slate-400 font-medium truncate">بانتظار اختيار الشركة أولاً</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-400 font-medium">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-brand-secondary"></i>
+              <span data-i18n="op_footer_note">محرك Prepress يطابق مقاسات القص والبليد والتواقيع بدقة متناهية</span>
+            </div>
+          </div>
+
+          <!-- Certificate Wrapper (Aspect Ratio preserved & dynamically fitted - hidden until template chosen) -->
+          <div id="op-cert-wrapper" class="relative bg-white shadow-2xl transition-all duration-100 border border-slate-300 hidden">
+            <img id="op-canvas-img" src="" alt="Live Certificate Preview" class="w-full h-full object-contain pointer-events-none select-none block" />
+          </div>
+
+        </div>
+
+        <!-- Canvas Bottom Info Strip -->
+        <div class="h-10 bg-white border-t border-slate-200 px-4 sm:px-6 flex items-center justify-between text-xs text-slate-500 shrink-0 z-20">
+          <div class="flex items-center gap-2 truncate">
+            <span class="font-bold text-slate-700" id="op-bottom-tpl-name" data-i18n="op_bottom_tpl_default">القالب: —</span>
+            <span class="text-slate-300">|</span>
+            <span class="font-mono text-[11px]" id="op-bottom-tpl-dims">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-brand-accent"></i>
+            <span id="op-bottom-trainer-name" class="font-semibold text-slate-700" data-i18n="op_bottom_trainer_default">المدرب: الافتراضي</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Side Operator Control Panel (~400px width) -->
+      <aside class="w-[380px] sm:w-[420px] shrink-0 h-full bg-white border-s border-slate-200 flex flex-col overflow-hidden shadow-sm z-20">
+        
+        <!-- Sidebar Panel Header -->
+        <div class="h-14 px-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+              <i data-lucide="sliders" class="w-4 h-4 text-brand-primary"></i>
+            </div>
+            <div>
+              <h2 class="text-xs font-bold text-slate-800" data-i18n="op_sidebar_title">إعدادات التشغيل والبيانات</h2>
+              <p class="text-[10px] text-slate-400" data-i18n="op_sidebar_sub">ربط البيانات وتجهيز دفعات الشهادات</p>
+            </div>
+          </div>
+          <button onclick="resetOperatorData()" class="text-[11px] text-slate-500 hover:text-brand-accent font-semibold flex items-center gap-1 transition" title="إعادة تعيين البيانات" data-i18n-title="tip_reset_data">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+            <span data-i18n="btn_reset">إعادة ضبط</span>
+          </button>
+        </div>
+
+        <!-- Scrollable Sidebar Content -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+          
+          <!-- SECTION 1: Company & Template Selector -->
+          <div class="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5" for="op-company-filter">
+                <i data-lucide="building" class="w-3.5 h-3.5 text-brand-secondary"></i>
+                <span data-i18n="op_label_company">فلترة حسب الجهة / الشركة:</span>
+              </label>
+            </div>
+
+            <!-- Company Filter Selector -->
+            <select id="op-company-filter" onchange="handleCompanyFilterChange(this.value)" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-brand-secondary transition">
+              <option value="" disabled selected data-i18n="op_select_company_placeholder">— اختر اسم الشركة أولاً —</option>
+            </select>
+
+            <!-- Template Selector with Quick Search -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5" for="op-template-select">
+                  <i data-lucide="layout-template" class="w-3.5 h-3.5 text-brand-primary"></i>
+                  <span data-i18n="op_label_template">اختيار قالب الشهادة:</span>
+                </label>
+                <span id="op-templates-count-badge" class="text-[10px] text-slate-400">0 قالب</span>
+              </div>
+
+              <!-- Quick Search Input (Disabled until company is selected) -->
+              <div class="relative mb-2">
+                <input type="text" id="op-template-search-input" oninput="filterTemplatesBySearch(this.value)" disabled placeholder="بحث سريع في القوالب..." data-i18n-placeholder="op_search_templates_ph" class="w-full ps-7 pe-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-brand-secondary opacity-60 cursor-not-allowed">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute start-2 top-2.5 pointer-events-none"></i>
+              </div>
+
+              <select id="op-template-select" onchange="handleOperatorTemplateSelect(this.value)" disabled class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-bold text-brand-primary focus:outline-none focus:border-brand-secondary transition truncate opacity-60 cursor-not-allowed">
+                <option value="" disabled selected data-i18n="op_select_company_first">— يرجى اختيار الشركة أولاً —</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SECTION 2: Dual Data Source Tabs (Google Sheet vs Excel) -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            
+            <!-- Tab Buttons -->
+            <div class="flex border-b border-slate-200 bg-slate-50/60 p-1">
+              <button id="op-tab-sheet-btn" onclick="switchDataTab('sheet')" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-white bg-brand-primary shadow-xs transition flex items-center justify-center gap-1.5">
+                <i data-lucide="table" class="w-3.5 h-3.5"></i>
+                <span data-i18n="tab_google_sheet">قوقل شيت للمدرب</span>
+              </button>
+              <button id="op-tab-excel-btn" onclick="switchDataTab('excel')" class="flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition flex items-center justify-center gap-1.5">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-brand-success"></i>
+                <span data-i18n="tab_excel_file">ملف إكسل / CSV</span>
+              </button>
+            </div>
+
+            <!-- TAB A Content: Google Sheet Direct Integration -->
+            <div id="op-tab-sheet-content" class="p-3.5 space-y-3">
+              <!-- Select Trainer -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="op-sheet-trainer-select">
+                  <span data-i18n="op_label_trainer">المدرب المسؤول (التوقيع وشيت البيانات)</span>
+                </label>
+                <div class="flex gap-2">
+                  <select id="op-sheet-trainer-select" onchange="handleSheetTrainerSelect(this.value)" class="flex-1 px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-semibold text-slate-800 focus:outline-none focus:border-brand-secondary truncate">
+                    <!-- Populated dynamically -->
+                  </select>
+                  <button onclick="fetchCurrentTrainerSheet()" id="op-btn-fetch-sheet" class="px-3 py-1.5 rounded-xl bg-brand-secondary hover:bg-[#3b96cb] text-white text-xs font-bold flex items-center gap-1 transition shadow-xs whitespace-nowrap" title="جلب بيانات الشيت" data-i18n-title="tip_fetch_sheet">
+                    <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="btn_fetch">جلب</span>
+                  </button>
+                </div>
+                <p id="op-sheet-url-hint" class="text-[10px] text-slate-400 mt-1 truncate" data-i18n="op_no_sheet_linked">لم يتم ربط شيت قوقل لهذا المدرب</p>
+              </div>
+
+              <!-- Timestamp Date Filter Dropdown -->
+              <div id="op-sheet-date-filter-box" class="hidden">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-xs font-bold text-slate-700 flex items-center gap-1" for="op-sheet-date-select">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-primary"></i>
+                    <span data-i18n="op_label_timestamp_filter">فلترة تاريخ الدفعة (Timestamp):</span>
+                  </label>
+                  <span id="op-sheet-dates-count" class="text-[10px] text-slate-400 font-mono"></span>
+                </div>
+                <select id="op-sheet-date-select" onchange="handleSheetDateFilterChange(this.value)" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 focus:outline-none focus:border-brand-secondary">
+                  <!-- Unique Dates populated dynamically -->
+                </select>
+
+                <!-- Ignore Already-Issued Trainees Checkbox -->
+                <div class="mt-2 flex items-center gap-2">
+                  <input type="checkbox" id="op-hide-issued-checkbox" checked onchange="applySheetFilters()" class="w-4 h-4 rounded text-brand-primary border-slate-300 focus:ring-brand-primary">
+                  <label for="op-hide-issued-checkbox" class="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                    <span data-i18n="op_hide_issued_label">تجاهل من تم إصدار شهادات لهم مسبقاً</span>
+                  </label>
+                </div>
+
+                <!-- Optional Fixed Date Override for Google Sheet Batch -->
+                <div class="mt-2">
+                  <label class="block text-xs font-bold text-slate-700 mb-1" for="op-sheet-fixed-date">
+                    <span data-i18n="op_label_fixed_date">تاريخ ثابت موحد للدفعة (اختياري):</span>
+                  </label>
+                  <div class="relative flex items-center">
+                    <input type="text" id="op-sheet-fixed-date" oninput="handleFixedDateChange(this.value)" placeholder="مثال: 2026-11-01 أو 1-2 November 2026" data-i18n-placeholder="op_fixed_date_ph" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white placeholder:text-slate-400 text-slate-800 pe-8 font-medium">
+                    <input type="date" id="op-sheet-date-picker-helper" onchange="document.getElementById('op-sheet-fixed-date').value = this.value; handleFixedDateChange(this.value);" class="absolute right-2 opacity-0 w-6 h-6 cursor-pointer">
+                    <button type="button" onclick="document.getElementById('op-sheet-date-picker-helper').showPicker?.() || document.getElementById('op-sheet-date-picker-helper').click()" class="absolute right-2 text-slate-400 hover:text-brand-primary p-0.5" title="اختيار من التقويم" data-i18n-title="tip_pick_calendar">
+                      <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3-Way Auto-Binding Indicator -->
+              <div class="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/70 text-[11px] text-blue-900 space-y-1">
+                <div class="font-bold text-brand-primary flex items-center gap-1">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-brand-secondary"></i>
+                  <span data-i18n="op_binding_title">الربط التلقائي الثلاثي الذكي:</span>
+                </div>
+                <div class="text-[10px] text-slate-600 ps-4 space-y-0.5">
+                  <div>• <span data-i18n="bind_trainee_prefix">اسم المتدرب: عمود</span> <span class="font-mono font-bold text-brand-primary" id="op-bind-name-col">الاسم</span></div>
+                  <div>• <span data-i18n="bind_date_prefix">تاريخ التدريب: عمود</span> <span class="font-mono font-bold text-brand-primary" id="op-bind-date-col">Timestamp</span></div>
+                  <div>• <span data-i18n="bind_sig_auto">توقيع المدرب: توقيع المدرب المعتمد تلقائياً</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB B Content: Excel / CSV File Upload -->
+            <div id="op-tab-excel-content" class="p-3.5 space-y-3 hidden">
+              <!-- Dropzone -->
+              <div class="border-2 border-dashed border-slate-200 hover:border-brand-secondary rounded-xl p-3 text-center cursor-pointer transition bg-slate-50/50 hover:bg-sky-50/20" onclick="document.getElementById('op-excel-file-input').click()">
+                <input type="file" id="op-excel-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelFileUpload(this.files)">
+                <div class="flex items-center justify-center gap-2 text-xs font-bold text-brand-secondary">
+                  <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                  <span id="op-excel-filename-label" data-i18n="op_choose_excel">اختر أو اسحب ملف Excel / CSV</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-0.5" data-i18n="op_excel_hint">يدعم .xlsx بجميع أوراقه أو ملفات .csv</p>
+              </div>
+
+              <!-- Sheet Selector (If Excel with multiple sheets) -->
+              <div id="op-excel-sheet-selector-box" class="hidden">
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="op-excel-sheet-select">
+                  <span data-i18n="op_label_excel_sheet">اختر ورقة العمل (Worksheet):</span>
+                </label>
+                <select id="op-excel-sheet-select" onchange="handleExcelSheetChange(this.value)" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-800">
+                </select>
+              </div>
+
+              <!-- Column Mapping -->
+              <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-600 mb-0.5" for="op-map-name-select" data-i18n="op_map_name_label">عمود اسم المتدرب:</label>
+                  <select id="op-map-name-select" onchange="applyColumnMapping()" class="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 bg-white">
+                    <option value="Trainee_Name">Trainee_Name</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-600 mb-0.5" for="op-map-date-select" data-i18n="op_map_date_label">عمود تاريخ التدريب:</label>
+                  <select id="op-map-date-select" onchange="applyColumnMapping()" class="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 bg-white">
+                    <option value="Training_Date">Training_Date</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Select Trainer Signature for Excel Upload -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="op-excel-trainer-select">
+                  <span data-i18n="op_label_excel_trainer">توقيع المدرب للدفعة:</span>
+                </label>
+                <select id="op-excel-trainer-select" onchange="handleExcelTrainerSelect(this.value)" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-semibold text-slate-800 truncate">
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+
+              <!-- Optional Fixed Date Override -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="op-excel-fixed-date">
+                  <span data-i18n="op_label_fixed_date">تاريخ ثابت موحد للدفعة (اختياري):</span>
+                </label>
+                <div class="relative flex items-center">
+                  <input type="text" id="op-excel-fixed-date" oninput="handleFixedDateChange(this.value)" placeholder="مثال: 2026-11-01 أو 1-2 November 2026" data-i18n-placeholder="op_fixed_date_ph" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white placeholder:text-slate-400 text-slate-800 pe-8 font-medium">
+                  <input type="date" id="op-excel-date-picker-helper" onchange="document.getElementById('op-excel-fixed-date').value = this.value; handleFixedDateChange(this.value);" class="absolute right-2 opacity-0 w-6 h-6 cursor-pointer">
+                  <button type="button" onclick="document.getElementById('op-excel-date-picker-helper').showPicker?.() || document.getElementById('op-excel-date-picker-helper').click()" class="absolute right-2 text-slate-400 hover:text-brand-primary p-0.5" title="اختيار من التقويم" data-i18n-title="tip_pick_calendar">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SECTION 3: Data Hygiene & Formatting Controls -->
+          <div class="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
+            
+            <!-- Strict Text Hygiene Active Badge -->
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 text-emerald-700 font-bold">
+                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                <span data-i18n="op_hygiene_active">تنظيف النصوص التلقائي:</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-800 font-bold" data-i18n="status_active_badge">نشط</span>
+            </div>
+            <p class="text-[10px] text-slate-400" data-i18n="op_hygiene_desc">إزالة المسافات الزائدة والفراغات في بداية ونهاية الأسماء تلقائياً لجميع السجلات.</p>
+
+            <!-- Date Format Selector -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1" for="op-date-format-select">
+                <span data-i18n="op_label_date_format">صيغة عرض التاريخ في الشهادة:</span>
+              </label>
+              <select id="op-date-format-select" onchange="handleDateFormatChange(this.value)" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-mono font-bold text-brand-primary">
+                <option value="MONTH_DAY_YEAR_AUTO" selected data-i18n="date_fmt_auto">تلقائي ذكي (يناير ١٩، ٢٠٢٦ / January 19, 2026)</option>
+                <option value="MONTH_DAY_YEAR_AR" data-i18n="date_fmt_ar">عربي كامل (يناير ١٩، ٢٠٢٦)</option>
+                <option value="MONTH_DAY_YEAR_EN" data-i18n="date_fmt_en">إنجليزي كامل (January 19, 2026)</option>
+                <option value="DD-MM-YYYY" data-i18n="date_fmt_dmy_dash">DD-MM-YYYY (مثال: 19-01-2026)</option>
+                <option value="YYYY-MM-DD" data-i18n="date_fmt_ymd_dash">YYYY-MM-DD (مثال: 2026-01-19)</option>
+                <option value="DD/MM/YYYY" data-i18n="date_fmt_dmy_slash">DD/MM/YYYY (مثال: 19/01/2026)</option>
+                <option value="YYYY/MM/DD" data-i18n="date_fmt_ymd_slash">YYYY/MM/DD (مثال: 2026/01/19)</option>
+                <option value="As-Is" data-i18n="date_fmt_asis">As-Is (كما هو وارد في المصدر)</option>
+              </select>
+            </div>
+
+            <!-- Trainee Count & Readiness Badge -->
+            <div class="pt-2 border-t border-slate-200 flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700" data-i18n="op_readiness_title">جاهزية الدفعة:</span>
+                <span id="op-readiness-badge" class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-xs">
+                  0 متدرب جاهز للتوليد
+                </span>
+              </div>
+              <div id="op-shrink-warning-box" class="hidden bg-amber-50 border border-brand-warning/40 text-amber-900 px-3 py-2 rounded-xl text-[11px] flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-brand-warning shrink-0"></i>
+                <span id="op-shrink-warning-text" data-i18n="op_shrink_warning_default">تم تحجيم بعض الأسماء الطويلة تلقائياً لضمان عدم الخروج عن الإطار.</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-4 bg-slate-50 border-t border-slate-200 shrink-0">
+          <button id="op-btn-generate-batch" class="w-full py-2.5 px-4 rounded-xl bg-brand-success hover:bg-[#a4c243] text-brand-slate font-extrabold text-xs shadow-sm transition flex items-center justify-center gap-2" onclick="openBatchExportModal()">
+            <i data-lucide="printer" class="w-4 h-4 text-brand-primary"></i>
+            <span data-i18n="btn_batch_generate">توليد دفعات الشهادات (300 DPI)</span>
+          </button>
+        </div>
+
+      </aside>
+
+    </section>
+
+    <!-- ========================================================== -->
+    <!-- VIEW 2: DESIGNER STUDIO (استوديو المصمم - Professional 3-Panel Workspace) -->
+    <!-- ========================================================== -->
+    <section id="view-designer" class="hidden w-full h-full overflow-hidden flex-col bg-slate-100/90">
+      
+      <!-- 1. Top Studio Toolbar -->
+      <div class="min-h-[3.5rem] h-auto py-2 bg-brand-primary text-white px-3 sm:px-6 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0 border-b border-blue-900/50 shadow-sm z-20">
+        
+        <!-- Left: Template Selector, Company, & Name -->
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-white whitespace-nowrap">
+            <i data-lucide="layout-template" class="w-4 h-4 text-brand-secondary"></i>
+            <span class="hidden md:inline" data-i18n="label_template">القالب:</span>
+          </div>
+
+          <select id="designer-template-select" onchange="handleSelectTemplate(this.value)" class="bg-black/25 hover:bg-black/35 text-white text-xs rounded-lg px-2.5 py-1.5 border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[260px] sm:min-w-[360px] max-w-[480px] truncate">
+            <!-- Populated by JS -->
+          </select>
+
+          <!-- Company / Client Name Input (with autocomplete datalist) -->
+          <div class="flex items-center gap-1">
+            <input id="designer-template-company" type="text" list="company-datalist" oninput="handleTemplateCompanyChange(this.value)" placeholder="اسم الجهة / الشركة" data-i18n-placeholder="ph_company_name" title="اسم الجهة / الشركة التابع لها القالب" data-i18n-title="tip_company_name" class="bg-black/20 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:border-brand-secondary w-28 sm:w-32 truncate">
+            <datalist id="company-datalist">
+              <option value="عام (General)"></option>
+            </datalist>
+          </div>
+
+          <input id="designer-template-name" type="text" oninput="handleTemplateNameChange(this.value)" placeholder="اسم القالب" data-i18n-placeholder="ph_template_name" title="تعديل اسم القالب" data-i18n-title="tip_template_name" class="bg-black/20 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[240px] sm:w-80 flex-1 truncate">
+        </div>
+
+        <!-- Center: Base PDF Upload & Live Prepress Boxes -->
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+          <!-- Upload Real Base PDF Button -->
+          <input type="file" id="designer-base-pdf-input" accept=".pdf" class="hidden" onchange="handleBasePdfUpload(this.files)">
+          <button onclick="document.getElementById('designer-base-pdf-input').click()" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-brand-secondary hover:bg-[#3b96cb] text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap" title="رفع ملف PDF حقيقي للشهادة" data-i18n-title="tip_upload_pdf">
+            <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline" data-i18n="btn_upload_pdf_full">رفع ملف الشهادة (PDF)</span>
+            <span class="sm:hidden" data-i18n="btn_upload_pdf_short">رفع PDF</span>
+          </button>
+
+          <!-- Prepress Badges (TrimBox & Bleed) -->
+          <div class="hidden lg:flex items-center gap-2 bg-black/25 px-3 py-1 rounded-lg border border-white/10 text-[11px]">
+            <div class="flex items-center gap-1 text-blue-200">
+              <span class="text-white/60" data-i18n="label_trimbox">TrimBox:</span>
+              <span id="designer-trim-badge" class="font-mono text-brand-secondary font-bold">297.0 × 210.0 mm</span>
+            </div>
+            <span class="text-white/20">|</span>
+            <div class="flex items-center gap-1 text-blue-200">
+              <span class="text-white/60" data-i18n="label_bleed">Bleed:</span>
+              <span id="designer-bleed-badge" class="font-mono text-emerald-400 font-bold">3.0 mm</span>
+            </div>
+          </div>
+
+          <!-- Guides Toggle Checkbox -->
+          <label class="hidden md:flex items-center gap-1.5 text-xs text-white/90 cursor-pointer select-none">
+            <input id="designer-guides-toggle" type="checkbox" checked onchange="toggleGuides(this.checked)" class="w-3.5 h-3.5 rounded text-brand-secondary accent-brand-secondary">
+            <span class="text-[11px]" data-i18n="label_guides_toggle">حدود القص والبليد</span>
+          </label>
+        </div>
+
+        <!-- Right: Actions (Undo/Redo, Print Preview, Semantic Adders, Save) -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          
+          <!-- Undo / Redo Stack Buttons -->
+          <div class="flex items-center gap-1 border-e border-white/15 pe-1.5 sm:pe-2">
+            <button id="btn-undo" onclick="undo()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-40 disabled:pointer-events-none" title="تراجع Undo (Cmd+Z / Ctrl+Z)" data-i18n-title="tip_undo" disabled>
+              <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+            </button>
+            <button id="btn-redo" onclick="redo()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-40 disabled:pointer-events-none" title="إعادة Redo (Cmd+Shift+Z / Ctrl+Y)" data-i18n-title="tip_redo" disabled>
+              <i data-lucide="redo-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <!-- True Print Preview Toggle -->
+          <button id="btn-toggle-print-preview" onclick="toggleDesignerLivePreview()" class="px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition" title="معاينة الطباعة الصريحة بدون إطارات" data-i18n-title="tip_print_preview">
+            <i data-lucide="eye" class="w-3.5 h-3.5 text-brand-secondary"></i>
+            <span class="hidden md:inline" data-i18n="btn_print_preview">معاينة الطباعة</span>
+          </button>
+
+          <!-- 4 Semantic Field Adder Buttons -->
+          <div class="hidden 2xl:flex items-center gap-1">
+            <button onclick="addOrFocusTraineeNameField()" class="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition" title="حقل اسم المتدرب" data-i18n-title="tip_add_trainee_name">
+              <i data-lucide="user" class="w-3.5 h-3.5 text-brand-secondary"></i>
+              <span data-i18n="btn_add_name_short">+ اسم المتدرب</span>
+            </button>
+            <button onclick="addOrFocusTrainingDateField()" class="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition" title="حقل تاريخ التدريب" data-i18n-title="tip_add_training_date">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span data-i18n="btn_add_date_short">+ التاريخ</span>
+            </button>
+            <button onclick="addOrFocusTrainerSignatureField()" class="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition" title="إطار توقيع المدرب" data-i18n-title="tip_add_signature">
+              <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-pink-300"></i>
+              <span data-i18n="btn_add_sig_short">+ التوقيع</span>
+            </button>
+            <button onclick="addCustomTextField()" class="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition" title="حقل نصي مخصص" data-i18n-title="tip_add_custom_text">
+              <i data-lucide="type" class="w-3.5 h-3.5 text-sky-200"></i>
+              <span data-i18n="btn_add_custom_short">+ نص إضافي</span>
+            </button>
+          </div>
+
+          <!-- Save Template Button -->
+          <button id="btn-save-template" onclick="handleSaveCurrentTemplate()" class="px-3 py-1.5 rounded-lg bg-brand-success hover:bg-[#a4c243] text-brand-slate text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition whitespace-nowrap">
+            <i data-lucide="save" class="w-3.5 h-3.5 text-brand-primary"></i>
+            <span class="hidden sm:inline" data-i18n="btn_save_template">حفظ القالب</span>
+          </button>
+
+          <!-- Duplicate, Export, Import, Delete -->
+          <div class="flex items-center gap-1 border-s border-white/15 ps-1.5 sm:ps-2">
+            <button onclick="handleDuplicateCurrentTemplate()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition" title="نسخ القالب (Duplicate)" data-i18n-title="tip_duplicate_tpl">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="exportTemplateJson()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition" title="تصدير ملف القالب (Export JSON)" data-i18n-title="tip_export_json">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+            <input type="file" id="designer-import-json-input" accept=".json" class="hidden" onchange="importTemplateJson(this.files)">
+            <button onclick="document.getElementById('designer-import-json-input').click()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition" title="استيراد ملف قالب (Import JSON)" data-i18n-title="tip_import_json">
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="handleDeleteCurrentTemplate()" class="p-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white transition" title="حذف القالب الحالي (Delete Template)" data-i18n-title="tip_delete_tpl">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 2. Workspace Body: Center Canvas + Side Properties Inspector -->
+      <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Center Interactive Canvas (Fit-to-Screen) -->
+        <div id="designer-canvas-container" class="flex-1 relative bg-slate-200/90 flex items-center justify-center p-3 sm:p-6 overflow-hidden select-none">
+          
+          <!-- Zoom & Fit Controls Floater -->
+          <div class="absolute bottom-4 start-4 z-30 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md flex items-center gap-2 text-xs">
+            <button onclick="fitCanvasToScreen()" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1 text-[11px]" title="ملاءمة الشاشة" data-i18n-title="op_btn_fit">
+              <i data-lucide="maximize" class="w-3 h-3 text-brand-secondary"></i>
+              <span data-i18n="btn_fit_100">ملاءمة الشاشة (100% Fit)</span>
+            </button>
+            <span class="text-slate-300">|</span>
+            <span id="canvas-zoom-label" class="font-mono text-slate-500 text-[10px]">Fit: 100%</span>
+          </div>
+
+          <!-- Loading Overlay -->
+          <div id="canvas-loading-overlay" class="absolute inset-0 bg-slate-900/20 backdrop-blur-xs flex items-center justify-center z-40 hidden">
+            <div class="bg-white px-5 py-3 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-3 text-xs font-bold text-brand-primary">
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-brand-secondary"></i>
+              <span id="canvas-loading-text" data-i18n="canvas_loading_text">جاري معالجة الشهادة...</span>
+            </div>
+          </div>
+
+          <!-- Certificate Wrapper (Aspect Ratio preserved & dynamically fitted) -->
+          <div id="canvas-cert-wrapper" class="relative bg-white shadow-2xl transition-all duration-100 border border-slate-300">
+            
+            <!-- Base PDF Background Image / Live Render -->
+            <img id="canvas-base-img" src="" alt="Certificate Base" class="w-full h-full object-contain pointer-events-none select-none block" />
+
+            <!-- Bleed Box Guide (Red dashed) -->
+            <div id="canvas-bleed-guide" class="absolute inset-0 pointer-events-none border border-rose-500/60 border-dashed z-10">
+              <span class="absolute top-1 start-1 bg-rose-500 text-white text-[8px] font-mono px-1 rounded opacity-75">Bleed</span>
+            </div>
+
+            <!-- Trim Box Overlay (The active InDesign (0,0) coordinate origin) -->
+            <div id="canvas-trimbox-container" class="absolute z-20">
+              <!-- TrimBox Border Guide (Deep Navy dashed) -->
+              <div id="canvas-trim-guide" class="absolute inset-0 pointer-events-none border border-brand-primary/80 border-dashed">
+                <span class="absolute top-0.5 end-0.5 bg-brand-primary text-white text-[8px] font-mono px-1 rounded opacity-75">TrimBox (0,0)</span>
+              </div>
+
+              <!-- Interactive Frames Container (Fields & Signatures overlay) -->
+              <div id="canvas-frames-layer" class="absolute inset-0">
+                <!-- Draggable, Resizable frames injected dynamically by JS -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Side Properties Inspector Panel (Width ~360px-380px) -->
+        <aside id="designer-inspector-panel" class="w-[340px] sm:w-[380px] shrink-0 h-full overflow-y-auto bg-white border-s border-slate-200 shadow-sm flex flex-col z-20">
+          <!-- Populated by JS: renderInspector() -->
+        </aside>
+
+      </div>
+
+    </section>
+
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL 1: Live Certificate Preview (300 DPI Prepress Engine) -->
+  <!-- ========================================================== -->
+  <div id="preview-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-6">
+    <div class="fixed inset-0 modal-backdrop" onclick="closePreviewModal()"></div>
+    
+    <div class="relative bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+            <i data-lucide="layers" class="w-5 h-5 text-brand-secondary"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800" data-i18n="modal_preview_title">المعاينة الطباعية المباشرة (Prepress 300 DPI Engine)</h3>
+            <p class="text-xs text-slate-500" data-i18n="modal_preview_subtitle">تشكيل عربي فائق الدقة، تحجيم تلقائي للأسماء، وتثبيت التوقيع المتجهي</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="closePreviewModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Toolbar & Parameters -->
+      <div class="px-6 py-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs">
+        <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+          <label class="font-bold text-slate-700 whitespace-nowrap" for="preview-name-input" data-i18n="preview_label_sample_name">اسم المتدرب للتجربة:</label>
+          <input type="text" id="preview-name-input" value="" class="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-brand-secondary" placeholder="اسم المتدرب للتجربة" data-i18n-placeholder="preview_name_input_ph" oninput="debouncePreviewRefresh()">
+        </div>
+
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="preview-guide-toggle" checked onchange="refreshCertificatePreview()" class="rounded border-slate-300 text-brand-primary focus:ring-brand-secondary">
+            <span class="font-semibold text-slate-700" data-i18n="preview_label_guides">إظهار خطوط القص والهوامش (Trim/Bleed)</span>
+          </label>
+
+          <button onclick="refreshCertificatePreview()" class="px-3 py-1.5 rounded-xl bg-brand-primary hover:bg-[#003866] text-white font-bold transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span data-i18n="btn_refresh">تحديث</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Canvas View) -->
+      <div class="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-slate-100/70">
+        <div class="relative w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-slate-200/80 p-2 overflow-hidden flex items-center justify-center min-h-[320px]">
+          <div id="preview-loading" class="absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 text-xs font-bold text-brand-primary z-20">
+            <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-brand-secondary"></i>
+            <span data-i18n="preview_loading_text">جاري رندرة الشهادة بمحرك Prepress...</span>
+          </div>
+          <img id="preview-image" src="" alt="Certificate Prepress Preview" class="max-w-full h-auto object-contain rounded-xl shadow-inner">
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <span data-i18n="preview_footer_note">مقياس الإحداثيات يبدأ من الزاوية العلوية اليسرى لخط القص TrimBox (مطابق لبرنامج InDesign)</span>
+        <button onclick="closePreviewModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition" data-i18n="btn_close">إغلاق</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL 2: Trainer Profiles Manager (إدارة المدربين والتواقيع) -->
+  <!-- ========================================================== -->
+  <div id="trainers-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 modal-backdrop" onclick="closeTrainersModal()"></div>
+    
+    <div class="relative bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+            <i data-lucide="user-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800" data-i18n="modal_trainers_title">إدارة ملفات المدربين والتواقيع</h3>
+            <p class="text-xs text-slate-500" data-i18n="modal_trainers_subtitle">إضافة وتعديل المدربين، روابط قوقل شيت وتفريغ التواقيع تلقائياً</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-add-trainer-view" onclick="showTrainerForm()" class="px-3 py-1.5 rounded-xl bg-brand-primary text-white text-xs font-bold hover:bg-[#003866] transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span data-i18n="btn_add_trainer_modal">إضافة مدرب جديد</span>
+          </button>
+          <button onclick="closeTrainersModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto flex-1">
+        
+        <!-- SUBVIEW A: Trainers List -->
+        <div id="trainers-list-container" class="space-y-4">
+          <div id="trainers-cards-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- SUBVIEW B: Add / Edit Trainer Form -->
+        <div id="trainer-form-container" class="hidden">
+          <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+            <h4 id="trainer-form-title" class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-brand-secondary"></i>
+              <span data-i18n="form_new_trainer_title">بيانات المدرب الجديد والتوقيع</span>
+            </h4>
+            <button onclick="hideTrainerForm()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
+              <i data-lucide="arrow-left" class="w-3.5 h-3.5 rtl:rotate-180"></i>
+              <span data-i18n="btn_back_to_list">العودة لقائمة المدربين</span>
+            </button>
+          </div>
+
+          <form id="trainer-form" onsubmit="handleSaveTrainer(event)" class="space-y-4">
+            <input type="hidden" id="trainer-id-input" value="">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Trainer Name -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="trainer-name-input">
+                  <span data-i18n="label_trainer_name">اسم المدرب</span> <span class="text-brand-accent">*</span>
+                </label>
+                <input type="text" id="trainer-name-input" required placeholder="اسم المدرب" data-i18n-placeholder="ph_trainer_name" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary focus:ring-1 focus:ring-brand-secondary transition">
+              </div>
+
+              <!-- Scale Factor % -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700" for="trainer-scale-input">
+                    <span data-i18n="label_scale_factor">معامل تحجيم التوقيع (Scale Factor %)</span>
+                  </label>
+                  <span id="trainer-scale-badge" class="text-xs font-bold text-brand-primary">100%</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input type="range" id="trainer-scale-range" min="20" max="250" value="100" class="flex-1 accent-brand-primary cursor-pointer" oninput="updateScaleValue(this.value)">
+                  <input type="number" id="trainer-scale-input" min="20" max="250" value="100" class="w-16 px-2 py-1 text-xs text-center rounded-lg border border-slate-200 font-bold" oninput="updateScaleRange(this.value)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Google Sheet URL or Google Apps Script URL -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1" for="trainer-sheet-input">
+                <span data-i18n="label_sheet_url">رابط قوقل شيت أو تطبيق Google Apps Script (قراءة CSV وكتابة doPost)</span>
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none text-slate-400">
+                  <i data-lucide="link" class="w-4 h-4"></i>
+                </div>
+                <input type="url" id="trainer-sheet-input" placeholder="https://docs.google.com/spreadsheets/d/... أو https://script.google.com/macros/s/.../exec" data-i18n-placeholder="ph_trainer_sheet" class="w-full ps-9 pe-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary focus:ring-1 focus:ring-brand-secondary transition">
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1" data-i18n="sheet_url_hint">يدعم روابط قوقل شيت المباشرة أو تطبيقات Google Apps Script (doGet لقراءة CSV و doPost لكتابة اسم القالب)</p>
+            </div>
+
+            <!-- Optional Separate Google Apps Script Web App URL -->
+            <div class="mt-2">
+              <label class="block text-xs font-bold text-slate-700 mb-1" for="trainer-script-input">
+                <span data-i18n="label_script_url">رابط كتابة القالب (Google Apps Script Webhook - اختياري)</span>
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none text-slate-400">
+                  <i data-lucide="webhook" class="w-4 h-4"></i>
+                </div>
+                <input type="url" id="trainer-script-input" placeholder="https://script.google.com/macros/s/.../exec (اختياري إذا اختلف عن الرابط أعلاه)" data-i18n-placeholder="ph_trainer_script" class="w-full ps-9 pe-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary focus:ring-1 focus:ring-brand-secondary transition">
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1" data-i18n="script_url_hint">إذا استخدمت رابط Apps Script في الحقل الرئيسي أعلاه، فسيُعتمد تلقائياً للقراءة والكتابة</p>
+            </div>
+
+            <!-- Column Headers Mapping -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-200/70">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="trainer-name-col-input">
+                  <span data-i18n="label_name_col">عنوان عمود اسم المتدرب</span>
+                </label>
+                <input type="text" id="trainer-name-col-input" value="الاسم" placeholder="الاسم" data-i18n-placeholder="ph_trainer_name_col" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary">
+                <p class="text-[10px] text-slate-400 mt-0.5" data-i18n="col_name_default">الافتراضي: الاسم</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1" for="trainer-time-col-input">
+                  <span data-i18n="label_time_col">عنوان عمود وقت التسجيل (Timestamp)</span>
+                </label>
+                <input type="text" id="trainer-time-col-input" value="Timestamp" placeholder="Timestamp" data-i18n-placeholder="ph_trainer_time_col" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary">
+                <p class="text-[10px] text-slate-400 mt-0.5" data-i18n="col_time_default">الافتراضي: Timestamp</p>
+              </div>
+            </div>
+
+            <!-- Signature Upload & Auto-Trim Box (Vector PDF, PNG, JPG) -->
+            <div class="border border-slate-200 rounded-2xl p-4 bg-white">
+              <label class="block text-xs font-bold text-slate-700 mb-1">
+                <span data-i18n="label_signature_upload">توقيع المدرب (Vector PDF / PNG / JPG)</span>
+                <span class="text-[10px] font-normal text-slate-400 ms-1" data-i18n="signature_types_hint">(يدعم Vector PDF المتجهي، PNG الشفاف، وصور الورق JPG)</span>
+              </label>
+
+              <div class="flex flex-col sm:flex-row gap-4 items-center">
+                <!-- Drop/Browse Area -->
+                <div class="flex-1 w-full border-2 border-dashed border-slate-200 hover:border-brand-secondary rounded-xl p-4 text-center cursor-pointer transition bg-slate-50/50 hover:bg-sky-50/20" onclick="document.getElementById('trainer-sig-file').click()">
+                  <input type="file" id="trainer-sig-file" accept=".pdf,application/pdf,image/png,image/jpeg,image/jpg" class="hidden" onchange="previewSignatureUpload(this.files)">
+                  <div class="flex items-center justify-center gap-2 text-xs font-bold text-brand-secondary">
+                    <i data-lucide="file-signature" class="w-4 h-4"></i>
+                    <span data-i18n="choose_signature_file">اختر ملف التوقيع (PDF أو صورة)</span>
+                  </div>
+                  <p class="text-[10px] text-slate-400 mt-1" data-i18n="auto_trim_notice">يتعرف تلقائياً على المتجهي PDF والشفاف PNG ويفرغ الورق الأبيض تلقائياً</p>
+                </div>
+
+                <!-- Live Auto-Trimmed Result Preview -->
+                <div class="w-full sm:w-60 h-28 rounded-xl border border-slate-200 overflow-hidden checkerboard-pattern flex flex-col items-center justify-center p-2 relative shadow-inner">
+                  <img id="trainer-sig-preview-img" src="" alt="Signature Preview" class="max-h-full max-w-full object-contain hidden">
+                  <div id="trainer-sig-placeholder" class="text-[11px] text-slate-400 text-center flex flex-col items-center gap-1">
+                    <i data-lucide="signature" class="w-6 h-6 text-slate-300"></i>
+                    <span data-i18n="sig_preview_placeholder">معاينة التوقيع المفرغ</span>
+                  </div>
+                  <div id="trainer-sig-loading" class="hidden absolute inset-0 bg-white/80 flex flex-col items-center justify-center text-xs text-brand-primary font-bold gap-1">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span data-i18n="sig_processing">جاري التفريغ والاقتصاص...</span>
+                  </div>
+                  <span id="trainer-sig-type-badge" class="hidden absolute top-1 start-1 bg-black/70 text-white text-[9px] px-1.5 py-0.2 rounded font-mono font-bold"></span>
+                </div>
+              </div>
+
+              <!-- Trim details tag -->
+              <div id="sig-trim-details" class="hidden mt-2 text-[10px] text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200 flex items-center justify-between">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="check" class="w-3 h-3 text-emerald-600"></i>
+                  <span data-i18n="sig_trimmed_success">تمت معالجة التوقيع واقتصاص الحواف بنجاح</span>
+                </span>
+                <span id="sig-dim-info" class="font-mono font-bold"></span>
+              </div>
+            </div>
+
+            <!-- Form Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button type="button" onclick="hideTrainerForm()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition" data-i18n="btn_cancel">إلغاء</button>
+              <button type="submit" id="btn-save-trainer" class="px-5 py-2 rounded-xl bg-brand-primary hover:bg-[#003866] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="save" class="w-4 h-4 text-brand-secondary"></i>
+                <span data-i18n="btn_save_trainer">حفظ ملف المدرب</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <span data-i18n="trainers_footer_tip">يتم حفظ ملفات المدربين والتواقيع المفرغة محلياً في مجلد trainers_store</span>
+        <button onclick="closeTrainersModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition" data-i18n="btn_close">إغلاق</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL 3: Batch Export Modal (تصدير الدفعات والتقارير)      -->
+  <!-- ========================================================== -->
+  <div id="batch-export-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 modal-backdrop" onclick="closeBatchExportModal()"></div>
+    
+    <div class="relative bg-white rounded-3xl max-w-xl w-full flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+            <i data-lucide="printer" class="w-5 h-5 text-brand-primary"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800" data-i18n="batch_modal_title">تصدير دفعة الشهادات الطباعية (Batch Export)</h3>
+            <p class="text-xs text-slate-500" id="batch-export-tpl-name" data-i18n="batch_modal_subtitle">إعداد خيارات التصدير بصيغة الطباعة عالية الدقة 300 DPI</p>
+          </div>
+        </div>
+        <button onclick="closeBatchExportModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 space-y-4 text-xs">
+        
+        <!-- Summary Box -->
+        <div class="bg-blue-50/80 p-3.5 rounded-2xl border border-blue-200/80 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4 text-brand-secondary"></i>
+            <span class="font-bold text-brand-primary" id="batch-export-records-summary">0 سجل متدرب جاهز للتصدير</span>
+          </div>
+          <span class="text-[10px] bg-white px-2 py-0.5 rounded-full font-mono font-bold text-brand-primary border border-blue-200" data-i18n="badge_prepress_300">Prepress 300 DPI</span>
+        </div>
+
+        <!-- 1. Export Mode -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1" for="batch-export-mode" data-i18n="batch_export_mode_label">صيغة التصدير المطلوبة:</label>
+          <select id="batch-export-mode" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-brand-primary bg-white focus:outline-none focus:border-brand-secondary">
+            <option value="combined_pdf" data-i18n="batch_opt_combined_pdf">ملف PDF واحد مدمج لجميع الشهادات (Combined Print PDF)</option>
+            <option value="individual_pdfs_zip" data-i18n="batch_opt_pdfs_zip">حزمة ZIP تحتوي على ملفات PDF منفصلة لكل متدرب + تقرير التصدير</option>
+            <option value="individual_jpegs_zip" data-i18n="batch_opt_jpegs_zip">حزمة ZIP تحتوي على صور عالية الدقة (300 DPI JPEGs) + تقرير التصدير</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1" data-i18n="batch_export_mode_hint">يحافظ الملف المدمج على مقاسات القص والبليد والتواقيع المتجهية بدقة 100%.</p>
+        </div>
+
+        <!-- 2. Range Selector -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-bold text-slate-700" for="batch-export-range" data-i18n="batch_range_label">نطاق السجلات المراد تصديرها (Range):</label>
+            <span class="text-[10px] text-slate-400 font-mono" data-i18n="batch_range_hint">ALL أو 1-10 أو 5- أو 1,3,5-8</span>
+          </div>
+          <input type="text" id="batch-export-range" value="ALL" placeholder="ALL" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:border-brand-secondary">
+        </div>
+
+        <!-- 3. Filename Prefix & DPI -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1" for="batch-export-prefix" data-i18n="batch_prefix_label">بادئة اسم الملف المخرج:</label>
+            <input type="text" id="batch-export-prefix" value="CertFlow" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-brand-secondary">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1" for="batch-export-dpi" data-i18n="batch_dpi_label">دقة الرندرة الطباعية (DPI):</label>
+            <select id="batch-export-dpi" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold bg-white focus:outline-none focus:border-brand-secondary">
+              <option value="300" selected data-i18n="batch_dpi_300">300 DPI (معيار المطابع الاحترافية)</option>
+              <option value="150" data-i18n="batch_dpi_150">150 DPI (معاينة رقمية سريعة)</option>
+              <option value="600" data-i18n="batch_dpi_600">600 DPI (دقة أرشيفية متقدمة)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 4. Google Apps Script Write-Back & Webhook URL -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-bold text-slate-700" for="batch-export-webhook" data-i18n="batch_webhook_label">رابط الكتابة الراجعة وتحديث القالب (Apps Script / Webhook):</label>
+            <span id="batch-export-script-badge" class="hidden text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200" data-i18n="batch_webhook_badge">مرتبط تلقائياً بالمدرب</span>
+          </div>
+          <input type="url" id="batch-export-webhook" placeholder="https://script.google.com/macros/s/.../exec أو https://hook..." data-i18n-placeholder="batch_webhook_ph" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:border-brand-secondary">
+          <p class="text-[10px] text-slate-400 mt-1" data-i18n="batch_webhook_hint">يتم إرسال أسماء القوالب المعتمدة تلقائياً لكل متدرب عبر doPost إلى تطبيق Google Apps Script.</p>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="batch-export-loading" class="hidden bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-center gap-3 text-brand-primary font-bold">
+          <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-brand-secondary"></i>
+          <span data-i18n="batch_loading_text">جاري رندرة وتوليد حزمة الشهادات بمحرك Prepress... يرجى الانتظار</span>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+        <button type="button" onclick="closeBatchExportModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition" data-i18n="btn_cancel">إلغاء</button>
+        <button type="button" id="btn-start-batch-export" onclick="exportBatchSubmit()" class="px-5 py-2.5 rounded-xl bg-brand-success hover:bg-[#a4c243] text-brand-slate text-xs font-extrabold flex items-center gap-2 shadow-sm transition">
+          <i data-lucide="download" class="w-4 h-4 text-brand-primary"></i>
+          <span data-i18n="btn_start_batch_export">بدء التصدير وتحميل الملف</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL 4: Designer PIN Lock Modal (حماية استوديو المصمم)   -->
+  <!-- ========================================================== -->
+  <div id="designer-pin-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 modal-backdrop" onclick="closeDesignerPinModal()"></div>
+    <div class="relative bg-white rounded-3xl max-w-sm w-full p-6 flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      <div class="text-center mb-4">
+        <div class="w-12 h-12 rounded-2xl bg-brand-primary/10 text-brand-primary mx-auto flex items-center justify-center mb-3">
+          <i data-lucide="lock" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-base font-bold text-slate-800" data-i18n="pin_modal_title">رمز الدخول لاستوديو المصمم</h3>
+        <p class="text-xs text-slate-500 mt-1" data-i18n="pin_modal_subtitle">يرجى إدخال الرقم السري لحماية القوالب من التعديل غير المقصود</p>
+      </div>
+
+      <div class="space-y-3">
+        <input type="password" id="designer-pin-input" maxlength="8" class="w-full text-center tracking-widest text-lg font-mono font-bold px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-secondary" placeholder="••••" onkeydown="if(event.key==='Enter') verifyDesignerPin()">
+        <p id="designer-pin-error" class="hidden text-xs text-rose-600 font-bold text-center" data-i18n="pin_modal_error">الرقم السري غير صحيح</p>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 mt-6">
+        <button type="button" onclick="closeDesignerPinModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition" data-i18n="btn_cancel">إلغاء</button>
+        <button type="button" onclick="verifyDesignerPin()" class="px-5 py-2 rounded-xl bg-brand-primary hover:bg-[#003866] text-white text-xs font-bold transition shadow-sm" data-i18n="btn_unlock_designer">دخول الاستوديو</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- Toast Notification Container                              -->
+  <!-- ========================================================== -->
+  <div id="toast-container" class="fixed bottom-5 end-5 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full"></div>
+
+  <!-- Custom Scripts -->
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
