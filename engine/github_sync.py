@@ -30,12 +30,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-try:
-    import fcntl
-    HAS_FCNTL = True
-except ImportError:
-    HAS_FCNTL = False
-
 logger = logging.getLogger("certflow.github_sync")
 if not logger.handlers:
     _handler = logging.StreamHandler()
@@ -51,7 +45,7 @@ _sync_lock = threading.Lock()
 # Hydration verification state
 _hydration_status: str = "unconfigured"  # "unconfigured", "healthy", "degraded"
 _hydration_error: Optional[str] = None
-_hydration_lock = threading.Lock()
+_hydration_lock = threading.RLock()
 
 # Domain level locks (cross-thread and cross-process)
 _domain_mem_locks: Dict[str, threading.RLock] = {}
@@ -69,9 +63,10 @@ def is_hydration_healthy() -> bool:
 def get_hydration_status() -> Dict[str, Any]:
     """Returns detailed hydration status dictionary."""
     with _hydration_lock:
+        healthy = True if not is_configured() else (_hydration_status == "healthy")
         return {
             "status": _hydration_status,
-            "healthy": is_hydration_healthy(),
+            "healthy": healthy,
             "error": _hydration_error,
         }
 
@@ -95,24 +90,12 @@ def get_domain_lock(name: str) -> threading.RLock:
 @contextlib.contextmanager
 def store_lock(domain_name: str, lock_file: Optional[Path] = None):
     """
-    Acquires both an in-memory RLock and an OS file lock (fcntl.flock)
-    to protect the entire read-modify-write-push lifecycle across threads and processes.
+    Acquires an in-memory RLock to protect the entire read-modify-write-push lifecycle
+    across threads without blocking the single-worker event loop with OS file locks.
     """
     mem_lock = get_domain_lock(domain_name)
     with mem_lock:
-        if HAS_FCNTL and lock_file is not None:
-            lock_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(lock_file, "a") as f:
-                try:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                    yield
-                finally:
-                    try:
-                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-                    except Exception:
-                        pass
-        else:
-            yield
+        yield
 
 
 def merge_json_manifest_records(remote_bytes: bytes, local_bytes: bytes) -> bytes:
