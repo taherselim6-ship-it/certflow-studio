@@ -419,7 +419,7 @@ const translations = {
     tip_widest_name: "Jump to longest name to test maximum auto-shrink",
     op_btn_widest: "Longest Name",
     op_jump_placeholder: "Jump to Trainee...",
-    tip_tpl_name: "Active Program WorkBook Name",
+    tip_tpl_name: "Active Program Certificate Name",
     tip_trainer_name: "Assigned Trainer",
     tip_cert_date: "Approved Training Date",
     badge_optimal_fit: "100% Fit",
@@ -427,7 +427,7 @@ const translations = {
     tip_refresh_preview: "Refresh Live Print Preview",
     op_canvas_loading_text: "Rendering certificate with Prepress engine...",
     op_footer_note: "Coordinate system originates at top-left of TrimBox (matching Adobe InDesign)",
-    op_bottom_tpl_default: "Program WorkBook: —",
+    op_bottom_tpl_default: "Program Certificate: —",
     op_bottom_trainer_default: "Trainer: Unspecified",
     btn_font_manager: "Font Manager",
     btn_trainer_manager: "Trainer Profiles",
@@ -538,9 +538,9 @@ const translations = {
     btn_reset: "Reset",
     tip_reset_data: "Reset Operator Data & Template",
     op_label_company: "Affiliate / Client:",
-    op_label_template: "Program WorkBook:",
-    label_template: "Program WorkBook:",
-    label_template_prefix: "Program WorkBook:",
+    op_label_template: "Program Certificate:",
+    label_template: "Program Certificate:",
+    label_template_prefix: "Program Certificate:",
     tab_google_sheet: "Trainer Google Sheet",
     tab_excel_file: "Excel / CSV File",
     op_label_trainer: "Trainer Name (Signature & Data Sheet):",
@@ -578,20 +578,20 @@ const translations = {
     op_select_company_placeholder: "— Select Affiliate / Client First —",
     op_all_companies: "All Affiliates (All Clients)",
     op_select_company_first: "— Please select Affiliate first —",
-    op_select_template_placeholder: "— Select Program WorkBook —",
-    op_search_templates_ph: "Quick search Program WorkBooks...",
+    op_select_template_placeholder: "— Select Program Certificate —",
+    op_search_templates_ph: "Quick search Program Certificates...",
     op_no_sheet_linked: "No Google Sheet linked for this trainer",
-    op_empty_state_title: "Waiting for Program WorkBook Selection",
-    op_empty_state_desc: "Please select an Affiliate / Client and Program WorkBook from the sidebar to start live 300 DPI preview and generation.",
+    op_empty_state_title: "Waiting for Program Certificate Selection",
+    op_empty_state_desc: "Please select an Affiliate / Client and Program Certificate from the sidebar to start live 300 DPI preview and generation.",
     op_step1_label: "Step 1: Select Affiliate / Client",
-    op_step2_label: "Step 2: Select Program WorkBook",
+    op_step2_label: "Step 2: Select Program Certificate",
     op_hide_issued_label: "Ignore trainees with issued certificates",
     op_date_completed_badge: "✓ Issued",
     op_date_unissued_count: "remaining",
     ph_company_name: "Affiliate / Client",
-    tip_company_name: "Affiliate / Client Name for this WorkBook",
-    ph_template_name: "Program WorkBook Name",
-    tip_template_name: "Program WorkBook Display Name",
+    tip_company_name: "Affiliate / Client Name for this Certificate",
+    ph_template_name: "Program Certificate Name",
+    tip_template_name: "Program Certificate Display Name",
     tip_upload_pdf: "Upload or replace Background PDF",
     btn_upload_pdf_full: "Upload Background PDF",
     btn_upload_pdf_short: "Upload PDF",
@@ -610,11 +610,11 @@ const translations = {
     btn_add_sig_short: "+ Trainer Signature",
     tip_add_custom_text: "Add Custom Text Field",
     btn_add_custom_short: "+ Custom Text",
-    btn_save_template: "Save WorkBook",
-    tip_duplicate_tpl: "Duplicate Current WorkBook",
-    tip_export_json: "Export WorkBook JSON",
-    tip_import_json: "Import WorkBook from JSON",
-    tip_delete_tpl: "Delete this WorkBook permanently",
+    btn_save_template: "Save Certificate",
+    tip_duplicate_tpl: "Duplicate Current Certificate",
+    tip_export_json: "Export Certificate JSON",
+    tip_import_json: "Import Certificate from JSON",
+    tip_delete_tpl: "Delete this Certificate permanently",
     btn_fit_100: "Fit Screen",
     canvas_loading_text: "Loading Designer Studio...",
     preview_label_sample_name: "Sample Trainee Name:",
@@ -643,22 +643,22 @@ const translations = {
     batch_dpi_300: "300 DPI (Commercial Print Standard)",
     batch_dpi_150: "150 DPI (Fast Digital Preview)",
     batch_dpi_600: "600 DPI (Archival Ultra-Fine)",
-    batch_webhook_label: "Write-Back & WorkBook Sync URL (Apps Script / Webhook):",
+    batch_webhook_label: "Write-Back & Certificate Sync URL (Apps Script / Webhook):",
     batch_webhook_badge: "Auto-linked to Trainer",
     batch_webhook_ph: "Google Apps Script Web App URL for write-back...",
-    batch_webhook_hint: "Approved WorkBook names are automatically synced per trainee via doPost.",
+    batch_webhook_hint: "Approved Certificate names are automatically synced per trainee via doPost.",
     batch_loading_text: "Rendering and generating certificate batch with Prepress engine... Please wait",
     btn_start_batch_export: "Start Export & Download",
     pin_modal_title: "Designer Studio Access PIN",
     pin_modal_subtitle: "Please enter security PIN to protect templates from unintended modifications",
     pin_modal_error: "Incorrect PIN code",
     btn_unlock_designer: "Unlock Studio",
-    op_no_matching_templates: "No matching WorkBooks found",
+    op_no_matching_templates: "No matching Certificates found",
     no_trainers_registered: "No trainers registered",
     label_trainer_prefix: "Trainer:",
     status_unspecified: "Unspecified",
     op_no_records: "No records loaded",
-    badge_waiting_template: "Waiting for WorkBook Selection",
+    badge_waiting_template: "Waiting for Certificate Selection",
     badge_overflow: "Alert: Text Overflow!",
     warn_overflow: "Print Alert: Text overflows the frame even at maximum allowed shrink percentage!",
     badge_shrunk_pct: "Shrunk by:",
@@ -668,11 +668,11 @@ const translations = {
     sig_line_placeholder: "Signature Line",
     sig_default_label: "Trainer Signature",
     btn_cancel_preview: "Exit Preview & Return to Designer",
-    insp_template_settings: "General WorkBook Settings",
+    insp_template_settings: "General Certificate Settings",
     insp_click_field_hint: "Click any certificate field to inspect its prepress properties",
     insp_company_label: "Affiliate / Client:",
     insp_add_company_tip: "Add new Affiliate / Client",
-    insp_tpl_name_label: "Program WorkBook Name:",
+    insp_tpl_name_label: "Program Certificate Name:",
     insp_trimbox_size: "TrimBox Size:",
     insp_bleed_detected: "Detected Bleed:",
     insp_add_smart_fields: "Add Smart Prepress Fields:",
@@ -680,7 +680,7 @@ const translations = {
     btn_add_date_field: "+ Training Date Field",
     btn_add_sig_field: "+ Trainer Signature Frame",
     btn_add_custom_field: "+ Custom Text Field",
-    insp_fields_in_template: "Fields in WorkBook",
+    insp_fields_in_template: "Fields in Certificate",
     insp_badge_text_frame: "Text Frame",
     insp_label_preview_text: "Sample Preview Text:",
     insp_font_ar: "Arabic Font:",
@@ -747,7 +747,7 @@ const translations = {
     overlay_pdf_inspecting: "Inspecting PDF dimensions and print bleed...",
     overlay_rendering_300dpi: "Rendering ultra-high precision print preview (300 DPI)...",
     toast_enter_trainer_name: "Please enter trainer name",
-    toast_select_tpl_first: "Please select a Program WorkBook first",
+    toast_select_tpl_first: "Please select a Program Certificate first",
     toast_no_records_export: "No records available for export",
     toast_select_trainer_sheet: "Please select a trainer with a linked Google Sheet",
     toast_fetching_sheet: "Fetching Google Sheet data and inspecting dates...",
@@ -1271,7 +1271,7 @@ function renderOperatorTemplateSelect() {
       searchInput.classList.add("opacity-60", "cursor-not-allowed");
       searchInput.value = "";
     }
-    if (countBadge) countBadge.textContent = currentLang === "ar" ? "0 قالب" : "0 WorkBooks";
+    if (countBadge) countBadge.textContent = currentLang === "ar" ? "0 قالب" : "0 Certificates";
 
     const opt = document.createElement("option");
     opt.value = "";
@@ -1307,7 +1307,7 @@ function renderOperatorTemplateSelect() {
   });
 
   if (countBadge) {
-    countBadge.textContent = currentLang === "ar" ? `${filtered.length} قالب` : `${filtered.length} WorkBook(s)`;
+    countBadge.textContent = currentLang === "ar" ? `${filtered.length} قالب` : `${filtered.length} Certificate(s)`;
   }
 
   if (filtered.length === 0) {
@@ -1431,7 +1431,7 @@ function updateEmptyStateSteps() {
     }
     if (step2Status) {
       step2Status.className = "text-[10px] text-amber-800 font-bold truncate";
-      step2Status.textContent = currentLang === "en" ? "Select Program WorkBook from list" : "اختر قالب الشهادة من القائمة";
+      step2Status.textContent = currentLang === "en" ? "Select Program Certificate from list" : "اختر قالب الشهادة من القائمة";
     }
   } else {
     // Step 1 Active
@@ -4324,7 +4324,7 @@ async function handleDeleteCurrentTemplate() {
     return;
   }
   const tplTitle = currentTemplate.name || currentTemplate.id;
-  const isConfirmed = confirm(currentLang === "ar" ? `هل أنت متأكد من حذف القالب "${tplTitle}" نهائياً؟` : `Are you sure you want to permanently delete Program WorkBook "${tplTitle}"?`);
+  const isConfirmed = confirm(currentLang === "ar" ? `هل أنت متأكد من حذف القالب "${tplTitle}" نهائياً؟` : `Are you sure you want to permanently delete Program Certificate "${tplTitle}"?`);
   if (!isConfirmed) return;
 
   try {
