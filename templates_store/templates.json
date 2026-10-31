@@ -259,5 +259,263 @@
     "id": "tpl_c1b658bd",
     "created_at": "2026-10-29 20:26:53",
     "updated_at": "2026-10-29 20:32:08"
+  },
+  {
+    "name": "Empowering Your Team Through Effective Leadership",
+    "company": "LTC",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Trainee Name",
+        "x_mm": 29.7,
+        "y_mm": 121,
+        "width_mm": 156.5,
+        "height_mm": 24,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 32,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 74,
+        "y_mm": 188,
+        "width_mm": 92,
+        "height_mm": 14,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 13,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 82,
+        "y_mm": 211.5,
+        "width_mm": 53.5,
+        "height_mm": 24.5,
+        "baseline_offset_mm": 0,
+        "scale": 100,
+        "blend_multiply": true
+      }
+    ],
+    "base_pdf_filename": "base_31eb9ccd35_Empowering_Your_Team_Through_E.pdf",
+    "base_pdf_url": "/api/templates/base/base_31eb9ccd35_Empowering_Your_Team_Through_E.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_31eb9ccd35_Empowering_Your_Team_Through_E_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": false
+    },
+    "page_setup": {
+      "width_mm": 215.9,
+      "height_mm": 279.4,
+      "bleed_mm": 0,
+      "is_landscape": false
+    },
+    "id": "tpl_bed77e8a",
+    "created_at": "2026-10-30 20:17:16",
+    "updated_at": "2026-10-30 20:17:16"
+  },
+  {
+    "name": "5 Choices Certificate",
+    "company": "franklincovey",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Trainee Name",
+        "x_mm": 29.5,
+        "y_mm": 117.5,
+        "width_mm": 156,
+        "height_mm": 34.5,
+        "font_family": "Cairo Regular",
+        "english_font": "Myriad Pro Semibold",
+        "font_size": 32,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 69.5,
+        "y_mm": 187.5,
+        "width_mm": 96,
+        "height_mm": 14,
+        "font_family": "Cairo Regular",
+        "english_font": "Myriad Pro Semibold",
+        "font_size": 13,
+        "color": "#475569",
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 81.5,
+        "y_mm": 205,
+        "width_mm": 54.5,
+        "height_mm": 25,
+        "baseline_offset_mm": 0,
+        "scale": 100
+      }
+    ],
+    "base_pdf_filename": "base_5cdb6a41ab_5_Choices_Certificate.pdf",
+    "base_pdf_url": "/api/templates/base/base_5cdb6a41ab_5_Choices_Certificate.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_5cdb6a41ab_5_Choices_Certificate_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          725.385986328125,
+          905.385986328125
+        ],
+        "width_pt": 725.385986328125,
+        "height_pt": 905.385986328125,
+        "width_mm": 255.9,
+        "height_mm": 319.4
+      },
+      "bleedbox": {
+        "pt": [
+          56.692901611328125,
+          56.6929931640625,
+          668.6929931640625,
+          848.6930847167969
+        ],
+        "width_pt": 612.0000915527344,
+        "height_pt": 792.0000915527344,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "trimbox": {
+        "pt": [
+          56.692901611328125,
+          56.6929931640625,
+          668.6929931640625,
+          848.6930847167969
+        ],
+        "width_pt": 612.0000915527344,
+        "height_pt": 792.0000915527344,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "cropbox": {
+        "pt": [
+          56.692901611328125,
+          56.6929931640625,
+          668.6929931640625,
+          848.693115234375
+        ],
+        "width_pt": 612.0000915527344,
+        "height_pt": 792.0001220703125,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": false
+    },
+    "page_setup": {
+      "width_mm": 215.9,
+      "height_mm": 279.4,
+      "bleed_mm": 0,
+      "is_landscape": false
+    },
+    "id": "tpl_18c58717",
+    "created_at": "2026-10-30 22:15:21",
+    "updated_at": "2026-10-30 22:20:38"
   }
 ]
