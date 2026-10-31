@@ -49,6 +49,9 @@ let historyStack = [];
 let redoStack = [];
 const MAX_HISTORY = 30;
 let isDesignerLivePreviewActive = false;
+let designerSelectedCompany = "ALL";
+let pendingDesignerAction = null;
+let savedCompanies = [];
 
 // ==========================================================
 // Bilingual Translation Dictionary (Arabic / English)
@@ -175,6 +178,21 @@ const translations = {
     action_delete: "حذف",
     nav_operator: "منصة الموظف",
     nav_designer: "استوديو المصمم",
+    nav_templates: "قوالب الشهادات",
+    tip_manage_templates: "إدارة واستعراض قوالب الشهادات",
+    modal_templates_title: "إدارة قوالب الشهادات المعتمدة",
+    modal_templates_subtitle: "استعراض وتعديل واستنساخ قوالب الشهادات ومقاسات الطباعة",
+    btn_new_certificate: "+ شهادة جديدة",
+    tip_new_certificate: "إنشاء قالب شهادة جديد فارغ",
+    btn_edit_in_designer: "تعديل في المصمم",
+    no_templates_found: "لا توجد قوالب شهادات مطابقة",
+    ph_search_templates_modal: "بحث سريع في أسماء الشهادات...",
+    templates_footer_tip: "يتم حفظ ومزامنة قوالب الشهادات تلقائياً في السيرفر",
+    all_companies_option: "جميع الشركات / الجهات",
+    add_new_company_option: "+ إضافة شركة جديدة...",
+    load_saved_cert_label: "استدعاء شهادة محفوظة:",
+    no_certs_for_company: "لا توجد شهادات لهذه الشركة",
+    filter_by_company: "تصفية حسب الجهة / الشركة:",
     nav_trainers: "المدربين والتواقيع",
     nav_excel_template: "قالب الإكسل",
     btn_language: "اللغة",
@@ -526,6 +544,21 @@ const translations = {
     action_delete: "Delete",
     nav_operator: "Operator Workspace",
     nav_designer: "Designer Studio",
+    nav_templates: "Certificate Templates",
+    tip_manage_templates: "Manage and browse Certificate Templates",
+    modal_templates_title: "Certificate Templates Manager",
+    modal_templates_subtitle: "Browse, edit, and duplicate certificate templates and prepress setups",
+    btn_new_certificate: "+ New Certificate",
+    tip_new_certificate: "Create a new blank certificate template",
+    btn_edit_in_designer: "Edit in Designer",
+    no_templates_found: "No matching certificates found",
+    ph_search_templates_modal: "Quick search certificate names...",
+    templates_footer_tip: "Certificate templates are automatically saved and synced to server",
+    all_companies_option: "All Affiliates / Clients",
+    add_new_company_option: "+ Add New Affiliate...",
+    load_saved_cert_label: "Load Saved Certificate:",
+    no_certs_for_company: "No certificates for this company",
+    filter_by_company: "Filter by Affiliate / Client:",
     nav_trainers: "Trainers & Signatures",
     nav_excel_template: "Excel Template",
     btn_language: "Language",
@@ -884,9 +917,14 @@ function verifyDesignerPin() {
     try {
       sessionStorage.setItem("certflow_designer_unlocked", "true");
     } catch (e) {}
+    const act = pendingDesignerAction;
+    pendingDesignerAction = null;
     closeDesignerPinModal();
     if (err) err.classList.add("hidden");
     switchMode("designer");
+    if (typeof act === "function") {
+      setTimeout(() => act(), 100);
+    }
   } else {
     if (err) err.classList.remove("hidden");
     if (input) {
@@ -967,6 +1005,10 @@ async function fetchStatus() {
 
     const fontCount = data.fonts_count || 0;
     const trainerCount = data.trainers_count || 0;
+    const templateCount = data.templates_count || 0;
+
+    const sidebarTemplateCount = document.getElementById("sidebar-template-count");
+    if (sidebarTemplateCount) sidebarTemplateCount.textContent = templateCount;
 
     const sidebarTrainerCount = document.getElementById("sidebar-trainer-count");
     if (sidebarTrainerCount) sidebarTrainerCount.textContent = trainerCount;
@@ -1185,6 +1227,7 @@ async function fetchCompanies() {
     if (!res.ok) return;
     const data = await res.json();
     const companies = data.companies || [];
+    savedCompanies = companies;
 
     // Update Operator Company Filter Dropdown with mandatory placeholder
     const opFilter = document.getElementById("op-company-filter");
@@ -1233,6 +1276,72 @@ async function fetchCompanies() {
         opt.textContent = displayComp;
         datalist.appendChild(opt);
       });
+    }
+
+    // Update Designer Studio Company Filter Dropdown
+    const designerFilter = document.getElementById("designer-company-filter");
+    if (designerFilter) {
+      designerFilter.innerHTML = "";
+      const allOpt = document.createElement("option");
+      allOpt.value = "ALL";
+      allOpt.textContent = t("all_companies_option");
+      allOpt.selected = !designerSelectedCompany || designerSelectedCompany === "ALL";
+      designerFilter.appendChild(allOpt);
+
+      companies.forEach((comp) => {
+        const opt = document.createElement("option");
+        opt.value = comp;
+        let displayComp = comp;
+        if (comp === "عام (General)" || comp === "عام" || comp === "General") {
+          displayComp = currentLang === "ar" ? "عام" : "General";
+        }
+        opt.textContent = displayComp;
+        if (designerSelectedCompany === comp) {
+          opt.selected = true;
+        }
+        designerFilter.appendChild(opt);
+      });
+
+      const addOpt = document.createElement("option");
+      addOpt.value = "__ADD_NEW__";
+      addOpt.textContent = t("add_new_company_option");
+      designerFilter.appendChild(addOpt);
+
+      if (designerSelectedCompany && designerSelectedCompany !== "ALL") {
+        designerFilter.value = designerSelectedCompany;
+      }
+    }
+
+
+
+    // Update Templates Manager Modal Company Filter
+    const modalFilter = document.getElementById("modal-tpl-company-filter");
+    if (modalFilter) {
+      const prevVal = modalFilter.value || designerSelectedCompany || "ALL";
+      modalFilter.innerHTML = "";
+      const allOpt = document.createElement("option");
+      allOpt.value = "ALL";
+      allOpt.textContent = t("all_companies_option");
+      allOpt.selected = !prevVal || prevVal === "ALL";
+      modalFilter.appendChild(allOpt);
+
+      companies.forEach((comp) => {
+        const opt = document.createElement("option");
+        opt.value = comp;
+        let displayComp = comp;
+        if (comp === "عام (General)" || comp === "عام" || comp === "General") {
+          displayComp = currentLang === "ar" ? "عام" : "General";
+        }
+        opt.textContent = displayComp;
+        if (prevVal === comp) {
+          opt.selected = true;
+        }
+        modalFilter.appendChild(opt);
+      });
+
+      if (prevVal && prevVal !== "ALL") {
+        modalFilter.value = prevVal;
+      }
     }
   } catch (err) {
     console.error("fetchCompanies error:", err);
@@ -2955,17 +3064,77 @@ function promptAddNewCompany() {
   const name = prompt(currentLang === "ar" ? "أدخل اسم الجهة / الشركة الجديدة:" : "Enter new Affiliate / Client name:");
   if (!name || !name.trim()) return;
   const clean = name.trim();
+
+  // Assign to current template and inspector input
+  handleTemplateCompanyChange(clean);
+
   const datalist = document.getElementById("company-datalist");
   if (datalist) {
     const opt = document.createElement("option");
     opt.value = clean;
     datalist.appendChild(opt);
   }
-  handleTemplateCompanyChange(clean);
-  const compInput = document.getElementById("designer-template-company");
-  if (compInput) compInput.value = clean;
+
+  fetchCompanies().then(() => {
+    const designerFilter = document.getElementById("designer-company-filter");
+    if (designerFilter) designerFilter.value = clean;
+    const modalFilter = document.getElementById("modal-tpl-company-filter");
+    if (modalFilter) modalFilter.value = clean;
+    renderDesignerTemplateSelect();
+  });
+
   renderInspector();
   showToast(currentLang === "ar" ? `تمت إضافة وتعيين الشركة: "${clean}"` : `Affiliate / Client added: "${clean}"`, "success");
+}
+
+function handleDesignerCompanyFilterChange(val) {
+  if (val === "__ADD_NEW__") {
+    promptAddNewCompany();
+    return;
+  }
+  designerSelectedCompany = val || "ALL";
+
+  // Sync Top Filter and Modal Filter
+  const designerFilter = document.getElementById("designer-company-filter");
+  if (designerFilter && designerFilter.value !== designerSelectedCompany) {
+    designerFilter.value = designerSelectedCompany;
+  }
+  const modalFilter = document.getElementById("modal-tpl-company-filter");
+  if (modalFilter && modalFilter.value !== designerSelectedCompany) {
+    modalFilter.value = designerSelectedCompany;
+  }
+
+  // Update top template select with cascading filter
+  renderDesignerTemplateSelect();
+
+  // If a company is selected (not "ALL"), check if current template belongs to it
+  if (designerSelectedCompany !== "ALL") {
+    const filtered = getFilteredDesignerTemplates();
+    if (filtered.length > 0) {
+      const isCurrentInFiltered = currentTemplate && currentTemplate.id && filtered.some(t => t.id === currentTemplate.id);
+      if (!isCurrentInFiltered) {
+        handleSelectTemplate(filtered[0].id);
+      }
+    }
+  }
+
+  // Also sync modal cards if modal is currently open
+  const modal = document.getElementById("templates-modal");
+  if (modal && !modal.classList.contains("hidden")) {
+    renderTemplatesCards();
+  }
+}
+
+function handleModalCompanyFilterChange(val) {
+  designerSelectedCompany = val || "ALL";
+
+  const designerFilter = document.getElementById("designer-company-filter");
+  if (designerFilter && designerFilter.value !== designerSelectedCompany) {
+    designerFilter.value = designerSelectedCompany;
+  }
+
+  renderDesignerTemplateSelect();
+  renderTemplatesCards();
 }
 
 function initDesignerStudio() {
@@ -3014,33 +3183,90 @@ function debounceFitCanvas() {
   }, 100);
 }
 
+function getFilteredDesignerTemplates() {
+  return designerTemplates.filter((tpl) => {
+    if (!designerSelectedCompany || designerSelectedCompany === "ALL") return true;
+    return (tpl.company || "").trim() === designerSelectedCompany.trim();
+  });
+}
+
+function renderDesignerTemplateSelect() {
+  const selectEl = document.getElementById("designer-template-select");
+  if (!selectEl) return;
+
+  const filtered = getFilteredDesignerTemplates();
+  const isCompanyFiltered = designerSelectedCompany && designerSelectedCompany !== "ALL";
+  const emptyLabel = isCompanyFiltered ? t("no_certs_for_company") : t("no_templates_found");
+
+  selectEl.innerHTML = "";
+  if (filtered.length === 0) {
+    const emptyOpt = document.createElement("option");
+    emptyOpt.value = "";
+    emptyOpt.textContent = emptyLabel;
+    emptyOpt.disabled = true;
+    emptyOpt.selected = true;
+    selectEl.appendChild(emptyOpt);
+  } else {
+    filtered.forEach((tpl) => {
+      const opt = document.createElement("option");
+      opt.value = tpl.id;
+      opt.textContent = tpl.name || tpl.id;
+      if (currentTemplate && currentTemplate.id === tpl.id) {
+        opt.selected = true;
+      }
+      selectEl.appendChild(opt);
+    });
+  }
+
+  if (currentTemplate && !currentTemplate.id) {
+    const newOpt = document.createElement("option");
+    newOpt.value = "";
+    newOpt.textContent = currentLang === "ar" ? "+ [قالب شهادة جديد غير محفوظ]" : "+ [New Unsaved Certificate]";
+    newOpt.selected = true;
+    selectEl.insertBefore(newOpt, selectEl.firstChild);
+  }
+}
+
 async function loadDesignerTemplates() {
   try {
+    await fetchCompanies();
     const res = await fetch("/api/templates");
     if (!res.ok) throw new Error("فشل تحميل القوالب");
     const data = await res.json();
     designerTemplates = data.templates || [];
 
-    const selectEl = document.getElementById("designer-template-select");
-    if (selectEl) {
-      selectEl.innerHTML = "";
+    // Update Sidebar Template Count
+    const sidebarCount = document.getElementById("sidebar-template-count");
+    if (sidebarCount) sidebarCount.textContent = designerTemplates.length;
+
+    // Update Certificates Datalist
+    const certDatalist = document.getElementById("certificates-datalist");
+    if (certDatalist) {
+      certDatalist.innerHTML = "";
+      const seenNames = new Set();
       designerTemplates.forEach((tpl) => {
-        const opt = document.createElement("option");
-        opt.value = tpl.id;
-        opt.textContent = tpl.name || tpl.id;
-        selectEl.appendChild(opt);
+        const name = (tpl.name || "").trim();
+        if (name && !seenNames.has(name)) {
+          seenNames.add(name);
+          const opt = document.createElement("option");
+          opt.value = name;
+          certDatalist.appendChild(opt);
+        }
       });
     }
 
+    renderDesignerTemplateSelect();
+
     if (!currentTemplate && designerTemplates.length > 0) {
-      currentTemplate = designerTemplates[0];
+      currentTemplate = JSON.parse(JSON.stringify(designerTemplates[0]));
     }
 
     if (currentTemplate) {
-      if (selectEl) selectEl.value = currentTemplate.id;
-      const nameInput = document.getElementById("designer-template-name");
+      const selectEl = document.getElementById("designer-template-select");
+      if (selectEl && currentTemplate.id) selectEl.value = currentTemplate.id;
+      const nameInput = document.getElementById("insp-tplname-input");
       if (nameInput) nameInput.value = currentTemplate.name || "";
-      const compInput = document.getElementById("designer-template-company");
+      const compInput = document.getElementById("insp-company-input");
       if (compInput) compInput.value = currentTemplate.company || "";
       updatePrepressBadges();
       fitCanvasToScreen();
@@ -3053,31 +3279,125 @@ async function loadDesignerTemplates() {
 }
 
 function handleSelectTemplate(tplId) {
+  if (!tplId) return;
   const tpl = designerTemplates.find((t) => t.id === tplId);
   if (!tpl) return;
   currentTemplate = JSON.parse(JSON.stringify(tpl));
-  const nameInput = document.getElementById("designer-template-name");
+
+  // If template belongs to a company outside current filter, sync filter with that company
+  if (currentTemplate.company && designerSelectedCompany !== "ALL" && currentTemplate.company !== designerSelectedCompany) {
+    designerSelectedCompany = currentTemplate.company;
+    const designerFilter = document.getElementById("designer-company-filter");
+    if (designerFilter) designerFilter.value = designerSelectedCompany;
+    const modalFilter = document.getElementById("modal-tpl-company-filter");
+    if (modalFilter) modalFilter.value = designerSelectedCompany;
+    renderDesignerTemplateSelect();
+  }
+
+  const selectEl = document.getElementById("designer-template-select");
+  if (selectEl && currentTemplate.id) selectEl.value = currentTemplate.id;
+
+  const nameInput = document.getElementById("insp-tplname-input");
   if (nameInput) nameInput.value = currentTemplate.name || "";
-  const compInput = document.getElementById("designer-template-company");
+  const compInput = document.getElementById("insp-company-input");
   if (compInput) compInput.value = currentTemplate.company || "";
+
   activeFieldId = null;
   activeFieldType = null;
+  isDesignerLivePreviewActive = false;
+
+  // Ensure canvas base image preview is correctly updated
+  const baseImg = document.getElementById("canvas-base-img");
+  let previewUrl = currentTemplate.base_preview_url;
+  if (!previewUrl && currentTemplate.base_pdf_filename) {
+    previewUrl = `/api/templates/base-preview/${currentTemplate.base_pdf_filename}`;
+  }
+  if (!previewUrl) {
+    previewUrl = "/api/templates/base-preview/default_certificate_base.pdf";
+  }
+  if (baseImg) {
+    baseImg.src = previewUrl;
+  }
+
   updatePrepressBadges();
   fitCanvasToScreen();
   renderInspector();
 }
 
+function createNewBlankTemplate() {
+  const pageSetup = currentTemplate?.page_setup || { width_mm: 297.0, height_mm: 210.0, bleed_mm: 3.0 };
+  const targetCompany = (designerSelectedCompany && designerSelectedCompany !== "ALL")
+    ? designerSelectedCompany
+    : (currentTemplate?.company || "عام (General)");
+
+  currentTemplate = {
+    name: "",
+    company: targetCompany,
+    page_setup: { ...pageSetup },
+    dimensions: { width_mm: pageSetup.width_mm, height_mm: pageSetup.height_mm },
+    base_pdf_filename: "default_certificate_base.pdf",
+    base_preview_url: "/api/templates/base-preview/default_certificate_base.pdf",
+    elements: {},
+    fields: [],
+    signature_frames: []
+  };
+  delete currentTemplate.id;
+
+  activeFieldId = null;
+  activeFieldType = null;
+  isDesignerLivePreviewActive = false;
+
+  const nameInput = document.getElementById("insp-tplname-input");
+  if (nameInput) nameInput.value = "";
+  const compInput = document.getElementById("insp-company-input");
+  if (compInput) compInput.value = targetCompany;
+
+  const baseImg = document.getElementById("canvas-base-img");
+  if (baseImg) {
+    baseImg.src = currentTemplate.base_preview_url;
+  }
+  const framesLayer = document.getElementById("canvas-frames-layer");
+  if (framesLayer) framesLayer.innerHTML = "";
+
+  renderDesignerTemplateSelect();
+  updatePrepressBadges();
+  fitCanvasToScreen();
+  renderInspector();
+
+  showToast(currentLang === "ar" ? "تم فتح مساحة عمل لشهادة جديدة. اكتب اسم الشهادة واضبط الحقول ثم اضغط حفظ القالب." : "New blank certificate ready. Enter name and click Save Certificate.", "info");
+}
+
 function handleTemplateCompanyChange(newCompany) {
   if (!currentTemplate) return;
-  currentTemplate.company = newCompany.trim();
+  const clean = (newCompany !== undefined && newCompany !== null) ? newCompany : "";
+  currentTemplate.company = clean.trim();
+
+  const inspInput = document.getElementById("insp-company-input");
+  if (inspInput && inspInput.value !== clean) inspInput.value = clean;
+
+  if (currentTemplate.id) {
+    const t = designerTemplates.find((tpl) => tpl.id === currentTemplate.id);
+    if (t) t.company = currentTemplate.company;
+  }
 }
 
 function handleTemplateNameChange(newName) {
   if (!currentTemplate) return;
-  currentTemplate.name = newName.trim();
+  const clean = (newName !== undefined && newName !== null) ? newName : "";
+  currentTemplate.name = clean.trim();
+
+  const inspInput = document.getElementById("insp-tplname-input");
+  if (inspInput && inspInput.value !== clean) inspInput.value = clean;
+
+  // Real-time update of the option text in top toolbar select
   const selectEl = document.getElementById("designer-template-select");
-  if (selectEl && selectEl.selectedOptions[0]) {
-    selectEl.selectedOptions[0].textContent = currentTemplate.name;
+  if (selectEl && selectEl.selectedOptions && selectEl.selectedOptions[0]) {
+    selectEl.selectedOptions[0].textContent = currentTemplate.name || (currentLang === "ar" ? "[بدون اسم]" : "[Unnamed]");
+  }
+
+  if (currentTemplate.id) {
+    const t = designerTemplates.find((tpl) => tpl.id === currentTemplate.id);
+    if (t) t.name = currentTemplate.name;
   }
 }
 
@@ -3509,7 +3829,7 @@ function renderInspector() {
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1" for="insp-company-input">${t("insp_company_label")}</label>
             <div class="flex items-center gap-1.5">
-              <input type="text" id="insp-company-input" list="company-datalist" value="${currentTemplate.company || ""}" onchange="handleTemplateCompanyChange(this.value)" class="flex-1 p-2 rounded-xl border border-slate-200 text-xs bg-white font-semibold focus:border-brand-secondary focus:outline-none">
+              <input type="text" id="insp-company-input" list="company-datalist" autocomplete="off" value="${currentTemplate.company || ""}" oninput="handleTemplateCompanyChange(this.value)" class="flex-1 p-2 rounded-xl border border-slate-200 text-xs bg-white font-semibold focus:border-brand-secondary focus:outline-none">
               <button onclick="promptAddNewCompany()" class="p-2 rounded-xl bg-brand-primary text-white hover:bg-[#003866] transition shrink-0" title="${t("insp_add_company_tip")}">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
               </button>
@@ -3517,7 +3837,7 @@ function renderInspector() {
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1" for="insp-tplname-input">${t("insp_tpl_name_label")}</label>
-            <input type="text" id="insp-tplname-input" value="${currentTemplate.name || ""}" oninput="handleTemplateNameChange(this.value)" class="w-full p-2 rounded-xl border border-slate-200 text-xs bg-white font-bold text-brand-primary focus:border-brand-secondary focus:outline-none">
+            <input type="text" id="insp-tplname-input" list="certificates-datalist" autocomplete="off" value="${currentTemplate.name || ""}" oninput="handleTemplateNameChange(this.value)" class="w-full p-2 rounded-xl border border-slate-200 text-xs bg-white font-bold text-brand-primary focus:border-brand-secondary focus:outline-none">
           </div>
           <div class="pt-2 border-t border-slate-200/60 flex justify-between text-[11px]">
             <span class="text-slate-500">${t("insp_trimbox_size")}</span>
@@ -4189,7 +4509,7 @@ async function handleBasePdfUpload(files) {
     activeFieldId = null;
     activeFieldType = null;
 
-    const nameInput = document.getElementById("designer-template-name");
+    const nameInput = document.getElementById("insp-tplname-input");
     if (nameInput) nameInput.value = cleanName;
 
     pushHistoryState();
@@ -4269,9 +4589,13 @@ async function handleSaveCurrentTemplate() {
     saveBtn.classList.add("opacity-60");
   }
 
-  const compInput = document.getElementById("designer-template-company");
+  const compInput = document.getElementById("insp-company-input");
   if (compInput && currentTemplate) {
     currentTemplate.company = compInput.value.trim();
+  }
+  const nameInput = document.getElementById("insp-tplname-input");
+  if (nameInput && currentTemplate) {
+    currentTemplate.name = nameInput.value.trim();
   }
 
   try {
@@ -4358,9 +4682,13 @@ async function handleDeleteCurrentTemplate() {
 
 function exportTemplateJson() {
   if (!currentTemplate) return;
-  const compInput = document.getElementById("designer-template-company");
+  const compInput = document.getElementById("insp-company-input");
   if (compInput) {
     currentTemplate.company = compInput.value.trim();
+  }
+  const nameInput = document.getElementById("insp-tplname-input");
+  if (nameInput) {
+    currentTemplate.name = nameInput.value.trim();
   }
   const jsonStr = JSON.stringify(currentTemplate, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
@@ -4392,6 +4720,276 @@ function importTemplateJson(files) {
     }
   };
   reader.readAsText(file);
+}
+
+// ==========================================================
+// Certificate Templates Manager Engine (إدارة قوالب الشهادات)
+// ==========================================================
+function openTemplatesModal() {
+  if (!isDesignerUnlocked) {
+    pendingDesignerAction = () => {
+      openTemplatesModal();
+    };
+    openDesignerPinModal();
+    return;
+  }
+
+  if (currentMode !== "designer") {
+    switchMode("designer");
+  }
+
+  const modal = document.getElementById("templates-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  // Sync modal company filter with existing companies
+  fetchCompanies().then(() => {
+    const modalFilter = document.getElementById("modal-tpl-company-filter");
+    if (modalFilter) {
+      modalFilter.value = designerSelectedCompany || "ALL";
+    }
+    renderTemplatesCards();
+  });
+
+  lucide.createIcons();
+}
+
+function closeTemplatesModal() {
+  const modal = document.getElementById("templates-modal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function renderTemplatesCards() {
+  const grid = document.getElementById("templates-cards-grid");
+  const countBadge = document.getElementById("modal-tpl-count-badge");
+  const compFilter = document.getElementById("modal-tpl-company-filter");
+  const searchInput = document.getElementById("modal-tpl-search-input");
+
+  if (!grid) return;
+
+  const selectedCompany = compFilter ? compFilter.value : "ALL";
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+  const filtered = designerTemplates.filter((tpl) => {
+    if (selectedCompany && selectedCompany !== "ALL") {
+      const comp = (tpl.company || "").trim();
+      if (comp !== selectedCompany.trim()) return false;
+    }
+    if (query) {
+      const name = (tpl.name || "").toLowerCase();
+      const comp = (tpl.company || "").toLowerCase();
+      if (!name.includes(query) && !comp.includes(query)) return false;
+    }
+    return true;
+  });
+
+  if (countBadge) {
+    countBadge.textContent = currentLang === "ar" ? `${filtered.length} شهادة` : `${filtered.length} Certificate(s)`;
+  }
+
+  if (filtered.length === 0) {
+    const isCompFiltered = selectedCompany && selectedCompany !== "ALL";
+    const emptyMsg = isCompFiltered ? t("no_certs_for_company") : t("no_templates_found");
+    const emptySub = isCompFiltered
+      ? (currentLang === "ar" ? `لا توجد أي شهادات مسجلة للجهة "${selectedCompany}" حالياً.` : `No certificates registered under "${selectedCompany}" yet.`)
+      : (currentLang === "ar" ? "لم يتم العثور على أي قوالب شهادات مطابقة للبحث" : "No matching certificates found");
+
+    grid.innerHTML = `
+      <div class="col-span-full py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+          <i data-lucide="layout-template" class="w-6 h-6"></i>
+        </div>
+        <span class="font-bold text-slate-600 text-sm">${emptyMsg}</span>
+        <p class="text-[11px] text-slate-400 max-w-sm">${emptySub}</p>
+        <button onclick="createNewCertificateFromModal()" class="mt-2 px-3.5 py-2 rounded-xl bg-brand-primary text-white font-bold text-xs hover:bg-[#003866] transition flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>${t("btn_new_certificate")}</span>
+        </button>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  let html = "";
+  filtered.forEach((tpl) => {
+    let previewSrc = tpl.base_preview_url;
+    if (!previewSrc && tpl.base_pdf_filename) {
+      previewSrc = `/api/templates/base-preview/${encodeURIComponent(tpl.base_pdf_filename)}`;
+    }
+    if (!previewSrc) {
+      previewSrc = "/api/templates/base-preview/default_certificate_base.pdf";
+    }
+
+    const pageSetup = tpl.page_setup || tpl.dimensions || { width_mm: 297.0, height_mm: 210.0, bleed_mm: 3.0 };
+    const w = parseFloat(pageSetup.width_mm) || 297.0;
+    const h = parseFloat(pageSetup.height_mm) || 210.0;
+    const fieldsCount = (tpl.fields?.length || 0) + (tpl.signature_frames?.length || 0);
+    const compName = (tpl.company || "").trim() || (currentLang === "ar" ? "عام" : "General");
+    const isCurrentActive = currentTemplate && currentTemplate.id === tpl.id;
+
+    html += `
+      <div class="bg-white rounded-2xl border ${isCurrentActive ? 'border-brand-secondary ring-2 ring-brand-secondary/30' : 'border-slate-200/80'} shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden group">
+        <div>
+          <!-- Thumbnail Container -->
+          <div class="w-full h-36 bg-slate-100 relative overflow-hidden flex items-center justify-center border-b border-slate-100">
+            <img src="${previewSrc}" alt="${tpl.name || ''}" class="w-full h-full object-cover object-top transition duration-300 group-hover:scale-105" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+            <div class="hidden absolute inset-0 bg-gradient-to-br from-slate-100 to-blue-50/50 flex-col items-center justify-center text-slate-400 gap-1.5">
+              <i data-lucide="award" class="w-8 h-8 text-brand-primary/40"></i>
+              <span class="text-[10px] font-mono">${w} × ${h} mm</span>
+            </div>
+
+            <!-- Company Badge Over Image -->
+            <div class="absolute top-2 start-2">
+              <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white/95 text-slate-800 shadow-xs backdrop-blur-xs border border-slate-200/60 truncate max-w-[160px] inline-block">
+                ${compName}
+              </span>
+            </div>
+
+            ${isCurrentActive ? `
+              <div class="absolute top-2 end-2">
+                <span class="px-2 py-0.5 rounded-lg text-[9px] font-extrabold bg-brand-secondary text-white shadow-xs">
+                  ${currentLang === "ar" ? "الشهادة النشطة" : "Active"}
+                </span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Body Info -->
+          <div class="p-3.5 space-y-2">
+            <div>
+              <h4 class="text-xs font-bold text-slate-900 leading-snug truncate" title="${tpl.name || tpl.id}">
+                ${tpl.name || (currentLang === "ar" ? "بدون اسم" : "Unnamed")}
+              </h4>
+              <p class="text-[10px] font-mono text-slate-400 mt-0.5">${tpl.id}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-100 text-slate-500">
+              <div class="flex items-center gap-1">
+                <i data-lucide="crop" class="w-3.5 h-3.5 text-brand-primary"></i>
+                <span class="font-mono font-semibold">${w} × ${h} mm</span>
+              </div>
+              <div class="flex items-center gap-1 justify-end">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-brand-secondary"></i>
+                <span class="font-bold">${fieldsCount} ${currentLang === "ar" ? "حقل" : "fields"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div class="p-3 pt-0 flex items-center gap-1.5">
+          <button onclick="editTemplateInDesigner('${tpl.id}')" class="flex-1 py-1.5 px-2 rounded-xl bg-brand-primary hover:bg-[#003866] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs">
+            <i data-lucide="edit-3" class="w-3.5 h-3.5 text-brand-secondary"></i>
+            <span>${t("btn_edit_in_designer")}</span>
+          </button>
+          <button onclick="duplicateTemplateFromModal('${tpl.id}')" class="p-1.5 rounded-xl text-slate-500 hover:text-brand-primary hover:bg-slate-100 transition border border-slate-200" title="${t("tip_duplicate_tpl")}">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+          <button onclick="deleteTemplateFromModal('${tpl.id}')" class="p-1.5 rounded-xl text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition border border-rose-200" title="${t("tip_delete_tpl")}">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  grid.innerHTML = html;
+  lucide.createIcons();
+}
+
+function editTemplateInDesigner(tplId) {
+  closeTemplatesModal();
+
+  const loadAction = () => {
+    handleSelectTemplate(tplId);
+    showToast(currentLang === "ar" ? "تم تحميل القالب في استوديو المصمم بنجاح" : "Certificate loaded in Designer Studio", "success");
+  };
+
+  if (!isDesignerUnlocked) {
+    pendingDesignerAction = loadAction;
+    switchMode("designer");
+  } else {
+    switchMode("designer");
+    setTimeout(loadAction, 60);
+  }
+}
+
+function createNewCertificateFromModal() {
+  closeTemplatesModal();
+
+  const createAction = () => {
+    createNewBlankTemplate();
+  };
+
+  if (!isDesignerUnlocked) {
+    pendingDesignerAction = createAction;
+    switchMode("designer");
+  } else {
+    switchMode("designer");
+    setTimeout(createAction, 60);
+  }
+}
+
+async function duplicateTemplateFromModal(tplId) {
+  try {
+    const res = await fetch(`/api/templates/${encodeURIComponent(tplId)}/duplicate`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "فشل استنساخ القالب");
+    }
+    const data = await res.json();
+    showToast(t("toast_tpl_duplicated"), "success");
+    await loadDesignerTemplates();
+    renderTemplatesCards();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function deleteTemplateFromModal(tplId) {
+  const tpl = designerTemplates.find((t) => t.id === tplId);
+  const tplTitle = tpl ? (tpl.name || tpl.id) : tplId;
+  const isConfirmed = confirm(
+    currentLang === "ar"
+      ? `هل أنت متأكد من حذف القالب "${tplTitle}" نهائياً؟`
+      : `Are you sure you want to permanently delete Certificate "${tplTitle}"?`
+  );
+  if (!isConfirmed) return;
+
+  try {
+    const res = await fetch(`/api/templates/${encodeURIComponent(tplId)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "فشل حذف القالب");
+    }
+
+    showToast(t("toast_tpl_deleted"), "success");
+    if (currentTemplate && currentTemplate.id === tplId) {
+      currentTemplate = null;
+      activeFieldId = null;
+      activeFieldType = null;
+      const framesLayer = document.getElementById("canvas-frames-layer");
+      if (framesLayer) framesLayer.innerHTML = "";
+      const baseImg = document.getElementById("canvas-base-img");
+      if (baseImg) baseImg.src = "";
+    }
+
+    await loadDesignerTemplates();
+    renderTemplatesCards();
+    if (typeof fetchOperatorTemplates === "function") {
+      await fetchOperatorTemplates();
+    }
+  } catch (err) {
+    console.error("Delete template error:", err);
+    showToast(err.message, "error");
+  }
 }
 
 // ==========================================================

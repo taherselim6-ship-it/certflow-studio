@@ -17,3 +17,6 @@ exports/*.zip
 exports/*.pdf
 !exports/.gitkeep
 
+engine/__pycache__/trainer_manager.cpython-313.pyc
+*.pyc
+engine/__pycache__/batch_exporter.cpython-313.pyc

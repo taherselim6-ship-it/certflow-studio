@@ -68,10 +68,19 @@
           <span class="truncate" data-i18n="nav_designer">استوديو المصمم</span>
         </button>
 
+        <!-- 3. Certificate Templates Manager Modal Trigger -->
+        <button onclick="openTemplatesModal()" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center justify-between text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="إدارة قوالب الشهادات المعتمدة" data-i18n-title="tip_manage_templates">
+          <div class="flex items-center gap-3 min-w-0">
+            <i data-lucide="layout-template" class="w-4 h-4 text-brand-secondary shrink-0"></i>
+            <span class="truncate" data-i18n="nav_templates">قوالب الشهادات</span>
+          </div>
+          <span id="sidebar-template-count" class="bg-brand-secondary/30 text-brand-secondary text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+        </button>
+
         <!-- Divider -->
         <div class="my-2 border-t border-white/10"></div>
 
-        <!-- 3. Trainers & Signatures Modal Trigger -->
+        <!-- 4. Trainers & Signatures Modal Trigger -->
         <button onclick="openTrainersModal()" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center justify-between text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="إدارة ملفات وتواقيع المدربين" data-i18n-title="tip_manage_trainers">
           <div class="flex items-center gap-3 min-w-0">
             <i data-lucide="user-check" class="w-4 h-4 text-brand-secondary shrink-0"></i>
@@ -533,25 +542,40 @@
       <div class="min-h-[3.5rem] h-auto py-2 bg-brand-primary text-white px-3 sm:px-6 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0 border-b border-blue-900/50 shadow-sm z-20">
         
         <!-- Left: Template Selector, Company, & Name -->
-        <div class="flex items-center gap-2 shrink-0">
-          <div class="flex items-center gap-1.5 text-xs font-bold text-white whitespace-nowrap">
-            <i data-lucide="layout-template" class="w-4 h-4 text-brand-secondary"></i>
-            <span class="hidden md:inline" data-i18n="label_template">القالب:</span>
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Templates Manager Modal Quick Button -->
+          <button onclick="openTemplatesModal()" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition shrink-0" title="إدارة واستعراض قوالب الشهادات" data-i18n-title="tip_manage_templates">
+            <i data-lucide="layout-grid" class="w-4 h-4 text-brand-secondary"></i>
+          </button>
+
+          <!-- Company Filter Dropdown -->
+          <div class="flex items-center gap-1 shrink-0" title="تصفية حسب الجهة / الشركة">
+            <i data-lucide="building-2" class="w-3.5 h-3.5 text-blue-200 hidden xl:inline shrink-0"></i>
+            <select id="designer-company-filter" onchange="handleDesignerCompanyFilterChange(this.value)" class="bg-black/25 hover:bg-black/35 text-white text-xs font-semibold rounded-lg px-2 py-1.5 border border-white/20 focus:outline-none focus:border-brand-secondary max-w-[130px] sm:max-w-[170px] truncate">
+              <!-- Populated by JS -->
+            </select>
           </div>
 
-          <select id="designer-template-select" onchange="handleSelectTemplate(this.value)" class="bg-black/25 hover:bg-black/35 text-white text-xs rounded-lg px-2.5 py-1.5 border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[260px] sm:min-w-[360px] max-w-[480px] truncate">
+          <!-- Template Selector Dropdown -->
+          <div class="flex items-center gap-1 shrink-0">
+            <select id="designer-template-select" onchange="handleSelectTemplate(this.value)" class="bg-black/25 hover:bg-black/35 text-white text-xs rounded-lg px-2.5 py-1.5 border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[190px] sm:min-w-[260px] max-w-[380px] truncate">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+
+          <!-- New Blank Certificate Button -->
+          <button onclick="createNewBlankTemplate()" class="px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold flex items-center gap-1 transition border border-white/20 shrink-0 whitespace-nowrap" title="إنشاء قالب شهادة جديد فارغ" data-i18n-title="tip_new_certificate">
+            <i data-lucide="plus" class="w-3.5 h-3.5 text-brand-secondary"></i>
+            <span class="hidden sm:inline" data-i18n="btn_new_certificate">+ شهادة جديدة</span>
+          </button>
+
+          <!-- Shared Datalists for Inspector Inputs -->
+          <datalist id="company-datalist">
+            <option value="عام (General)"></option>
+          </datalist>
+          <datalist id="certificates-datalist">
             <!-- Populated by JS -->
-          </select>
-
-          <!-- Company / Client Name Input (with autocomplete datalist) -->
-          <div class="flex items-center gap-1">
-            <input id="designer-template-company" type="text" list="company-datalist" oninput="handleTemplateCompanyChange(this.value)" placeholder="اسم الجهة / الشركة" data-i18n-placeholder="ph_company_name" title="اسم الجهة / الشركة التابع لها القالب" data-i18n-title="tip_company_name" class="bg-black/20 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:border-brand-secondary w-28 sm:w-32 truncate">
-            <datalist id="company-datalist">
-              <option value="عام (General)"></option>
-            </datalist>
-          </div>
-
-          <input id="designer-template-name" type="text" oninput="handleTemplateNameChange(this.value)" placeholder="اسم القالب" data-i18n-placeholder="ph_template_name" title="تعديل اسم القالب" data-i18n-title="tip_template_name" class="bg-black/20 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:border-brand-secondary min-w-[240px] sm:w-80 flex-1 truncate">
+          </datalist>
         </div>
 
         <!-- Center: Base PDF Upload & Live Prepress Boxes -->
@@ -965,6 +989,76 @@
       <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
         <span data-i18n="trainers_footer_tip">يتم حفظ ملفات المدربين والتواقيع المفرغة محلياً في مجلد trainers_store</span>
         <button onclick="closeTrainersModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition" data-i18n="btn_close">إغلاق</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL: Certificate Templates Manager (إدارة قوالب الشهادات) -->
+  <!-- ========================================================== -->
+  <div id="templates-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 modal-backdrop" onclick="closeTemplatesModal()"></div>
+    
+    <div class="relative bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+            <i data-lucide="layout-template" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800" data-i18n="modal_templates_title">إدارة قوالب الشهادات المعتمدة</h3>
+            <p class="text-xs text-slate-500" data-i18n="modal_templates_subtitle">استعراض وتعديل واستنساخ قوالب الشهادات ومقاسات الطباعة</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="createNewCertificateFromModal()" class="px-3 py-1.5 rounded-xl bg-brand-primary text-white text-xs font-bold hover:bg-[#003866] transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span data-i18n="btn_new_certificate">+ شهادة جديدة</span>
+          </button>
+          <button onclick="closeTemplatesModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter & Search Toolbar Inside Modal -->
+      <div class="px-6 py-3 border-b border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+          <!-- Company Filter Dropdown -->
+          <div class="flex items-center gap-1.5 min-w-[170px]">
+            <i data-lucide="building-2" class="w-4 h-4 text-slate-400"></i>
+            <select id="modal-tpl-company-filter" onchange="handleModalCompanyFilterChange(this.value)" class="w-full text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 focus:outline-none focus:border-brand-secondary">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+
+          <!-- Search Input -->
+          <div class="relative flex-1 min-w-[180px]">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute start-3 top-2.5"></i>
+            <input type="text" id="modal-tpl-search-input" oninput="renderTemplatesCards()" placeholder="بحث سريع في أسماء الشهادات..." data-i18n-placeholder="ph_search_templates_modal" autocomplete="off" class="w-full text-xs ps-9 pe-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 focus:outline-none focus:border-brand-secondary">
+          </div>
+        </div>
+
+        <!-- Count Badge -->
+        <div class="flex items-center gap-2">
+          <span id="modal-tpl-count-badge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">0 شهادة</span>
+        </div>
+      </div>
+
+      <!-- Modal Body: Cards Grid -->
+      <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+        <div id="templates-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <span data-i18n="templates_footer_tip">يتم حفظ ومزامنة قوالب الشهادات تلقائياً في السيرفر</span>
+        <button onclick="closeTemplatesModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition" data-i18n="btn_close">إغلاق</button>
       </div>
 
     </div>
