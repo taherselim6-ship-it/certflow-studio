@@ -383,5 +383,126 @@
     "id": "tpl_fc051b70",
     "created_at": "2026-10-31 09:10:17",
     "updated_at": "2026-10-31 09:10:48"
+  },
+  {
+    "name": "Leadership Towards 2030",
+    "company": "LTC",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Trainee Name",
+        "x_mm": 22.5,
+        "y_mm": 117,
+        "width_mm": 171,
+        "height_mm": 32.5,
+        "font_family": "Cairo Regular",
+        "english_font": "Myriad Pro Semibold",
+        "font_size": 32,
+        "color": "#004B87",
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 73.5,
+        "y_mm": 189,
+        "width_mm": 92,
+        "height_mm": 14,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 13,
+        "color": "#475569",
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 78.2,
+        "y_mm": 208,
+        "width_mm": 59.5,
+        "height_mm": 25,
+        "baseline_offset_mm": 0,
+        "scale": 100
+      }
+    ],
+    "base_pdf_filename": "base_5e121c569a_Leadership_Towards_2030.pdf",
+    "base_pdf_url": "/api/templates/base/base_5e121c569a_Leadership_Towards_2030.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_5e121c569a_Leadership_Towards_2030_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          612,
+          792
+        ],
+        "width_pt": 612,
+        "height_pt": 792,
+        "width_mm": 215.9,
+        "height_mm": 279.4
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": false
+    },
+    "page_setup": {
+      "width_mm": 215.9,
+      "height_mm": 279.4,
+      "bleed_mm": 0,
+      "is_landscape": false
+    },
+    "id": "tpl_d4554776",
+    "created_at": "2026-10-31 23:32:56",
+    "updated_at": "2026-10-31 23:32:56"
   }
 ]
