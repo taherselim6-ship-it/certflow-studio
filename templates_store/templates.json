@@ -410,11 +410,11 @@
         "label": "تاريخ التدريب",
         "default_text": "يناير ١٩، ٢٠٢٦",
         "x_mm": 73.5,
-        "y_mm": 189,
+        "y_mm": 188,
         "width_mm": 92,
         "height_mm": 14,
         "font_family": "Cairo Regular",
-        "english_font": "Cairo Regular",
+        "english_font": "Myriad Pro Semibold",
         "font_size": 13,
         "color": "#475569",
         "horizontal_align": "center",
@@ -503,6 +503,6 @@
     },
     "id": "tpl_d4554776",
     "created_at": "2026-10-31 23:32:56",
-    "updated_at": "2026-10-31 23:32:56"
+    "updated_at": "2026-10-31 23:33:30"
   }
 ]
