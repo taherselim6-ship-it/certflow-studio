@@ -625,5 +625,136 @@
     "id": "tpl_f6b05436",
     "created_at": "2026-10-31 23:38:38",
     "updated_at": "2026-10-31 23:38:38"
+  },
+  {
+    "name": "SLII certificate",
+    "company": "BLANCHARD",
+    "fields": [
+      {
+        "id": "trainee_name",
+        "label": "اسم المتدرب",
+        "default_text": "Trainee Name",
+        "x_mm": 7.4,
+        "y_mm": 70,
+        "width_mm": 264.5,
+        "height_mm": 55.5,
+        "font_family": "Cairo Regular",
+        "english_font": "Cairo Regular",
+        "font_size": 32,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "max_shrink_percent": 25,
+        "baseline_offset_mm": 0
+      },
+      {
+        "id": "training_date",
+        "label": "تاريخ التدريب",
+        "default_text": "يناير ١٩، ٢٠٢٦",
+        "x_mm": 210,
+        "y_mm": 157.5,
+        "width_mm": 57.5,
+        "height_mm": 14,
+        "font_family": "Cairo Regular",
+        "english_font": "Helvetica Regular",
+        "font_size": 13,
+        "color": {
+          "c": 0,
+          "m": 0,
+          "y": 0,
+          "k": 100
+        },
+        "horizontal_align": "center",
+        "vertical_align": "top",
+        "max_shrink_percent": 20,
+        "baseline_offset_mm": 0
+      }
+    ],
+    "signature_frames": [
+      {
+        "id": "trainer_signature",
+        "label": "توقيع المدرب",
+        "x_mm": 209.5,
+        "y_mm": 128.5,
+        "width_mm": 57.5,
+        "height_mm": 29,
+        "baseline_offset_mm": 0,
+        "scale": 100
+      }
+    ],
+    "base_pdf_filename": "base_d5e6b90515_SLII_certificate.pdf",
+    "base_pdf_url": "/api/templates/base/base_d5e6b90515_SLII_certificate.pdf",
+    "base_preview_url": "/api/templates/base-preview/base_d5e6b90515_SLII_certificate_preview.png",
+    "boxes_metadata": {
+      "mediabox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleedbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "trimbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "cropbox": {
+        "pt": [
+          0,
+          0,
+          792,
+          612
+        ],
+        "width_pt": 792,
+        "height_pt": 612,
+        "width_mm": 279.4,
+        "height_mm": 215.9
+      },
+      "bleed_offsets_mm": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0
+      },
+      "is_landscape": true
+    },
+    "page_setup": {
+      "width_mm": 279.4,
+      "height_mm": 215.9,
+      "bleed_mm": 0,
+      "is_landscape": true
+    },
+    "id": "tpl_2600929e",
+    "created_at": "2026-11-05 12:47:14",
+    "updated_at": "2026-11-05 12:47:14"
   }
 ]
