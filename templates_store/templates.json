@@ -669,10 +669,10 @@
       {
         "id": "trainer_signature",
         "label": "توقيع المدرب",
-        "x_mm": 211,
-        "y_mm": 139,
-        "width_mm": 52,
-        "height_mm": 19.5,
+        "x_mm": 209,
+        "y_mm": 134,
+        "width_mm": 57,
+        "height_mm": 23,
         "baseline_offset_mm": 0,
         "scale": 100
       }
@@ -745,6 +745,6 @@
     },
     "id": "tpl_7b8def3c",
     "created_at": "2026-10-31 23:42:33",
-    "updated_at": "2026-10-31 23:42:33"
+    "updated_at": "2026-11-05 12:43:25"
   }
 ]
