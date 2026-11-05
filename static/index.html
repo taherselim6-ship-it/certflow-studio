@@ -1176,10 +1176,30 @@
           <p class="text-[10px] text-slate-400 mt-1" data-i18n="batch_webhook_hint">يتم إرسال أسماء القوالب المعتمدة تلقائياً لكل متدرب عبر doPost إلى تطبيق Google Apps Script.</p>
         </div>
 
-        <!-- Loading indicator -->
-        <div id="batch-export-loading" class="hidden bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-center gap-3 text-brand-primary font-bold">
-          <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-brand-secondary"></i>
-          <span data-i18n="batch_loading_text">جاري رندرة وتوليد حزمة الشهادات بمحرك Prepress... يرجى الانتظار</span>
+        <!-- Progress Tracker Card -->
+        <div id="batch-export-loading" class="hidden bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-3 shadow-inner">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-700">
+            <span id="batch-progress-stage-title" class="flex items-center gap-2">
+              <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand-secondary"></i>
+              <span data-i18n="batch_progress_init">جاري التحضير وتجهيز ملفات الشهادات...</span>
+            </span>
+            <span id="batch-progress-pct" class="font-mono text-brand-primary bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-xs text-xs font-black">0%</span>
+          </div>
+
+          <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+            <div id="batch-progress-bar" class="h-full bg-brand-secondary transition-all duration-300 rounded-full" style="width: 0%"></div>
+          </div>
+
+          <div class="space-y-1.5 pt-1 text-[11px] text-slate-600">
+            <div id="batch-step1-status" class="flex items-center gap-2">
+              <i data-lucide="circle-dashed" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span data-i18n="batch_step1_label">المرحلة 1: رندرة Prepress عالية الدقة وتحميل الملف</span>
+            </div>
+            <div id="batch-step2-status" class="flex items-center gap-2">
+              <i data-lucide="circle-dashed" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span data-i18n="batch_step2_label">المرحلة 2: رفع الملف إلى Google Drive وتحديث الجدول</span>
+            </div>
+          </div>
         </div>
 
       </div>

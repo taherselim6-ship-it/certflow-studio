@@ -280,6 +280,202 @@ class TestBatchDrivePending(unittest.TestCase):
             self.assertEqual(trainers[0]["unissued_count"], 2)
             self.assertEqual(trainers[0]["first_pending_date"], "2026-11-10")
 
+    @patch("httpx.Client.post")
+    def test_batch_export_skip_cloud_sync(self, mock_post):
+        """Verify execute_batch_export does not contact Apps Script/Drive when skip_cloud_sync=True."""
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            result = batch_exporter.execute_batch_export(
+                template_config=self.sample_template,
+                records=self.sample_records,
+                export_mode="combined_pdf",
+                range_str="ALL",
+                apps_script_url="https://script.google.com/macros/s/AKfycbxTest/exec",
+                drive_folder_id="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+                skip_cloud_sync=True,
+            )
+
+            # Assert no network calls were made
+            mock_post.assert_not_called()
+            self.assertFalse(result["apps_script_synced"])
+            self.assertFalse(result["drive_saved"])
+            self.assertEqual(result["exported_count"], 2)
+
+            # File should exist on disk
+            out_file = Path(result["file_path"])
+            self.assertTrue(out_file.exists())
+            out_file.unlink()
+
+    @patch("engine.batch_exporter.httpx.Client")
+    def test_sync_exported_file_to_cloud_success_and_cleanup(self, mock_client_cls):
+        """Verify sync_exported_file_to_cloud sends payload and cleans up file on success."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = json.dumps({
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/test_file/view"
+        })
+        mock_resp.json.return_value = {
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/test_file/view"
+        }
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        # Create dummy file in EXPORTS_DIR
+        test_filename = "test_export_sync.pdf"
+        target_path = batch_exporter.EXPORTS_DIR / test_filename
+        target_path.write_bytes(b"%PDF-1.4 dummy content")
+        self.assertTrue(target_path.exists())
+
+        updates = [
+            {"trainee_name": "Omar Farooq", "template_name": "DevOps Leadership Course"},
+            {"trainee_name": "Sara Salem", "template_name": "DevOps Leadership Course"},
+        ]
+
+        result = batch_exporter.sync_exported_file_to_cloud(
+            filename=test_filename,
+            template_name="DevOps Leadership Course",
+            updates=updates,
+            total_records=2,
+            apps_script_url="https://script.google.com/macros/s/AKfycbxTest/exec",
+            drive_folder_id="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+        )
+
+        self.assertTrue(result["apps_script_synced"])
+        self.assertEqual(result["apps_script_updated"], 2)
+        self.assertTrue(result["drive_saved"])
+        self.assertEqual(result["drive_file_url"], "https://drive.google.com/file/d/test_file/view")
+
+        # Verify payload
+        call_args, call_kwargs = mock_client.post.call_args
+        payload = call_kwargs["json"]
+        self.assertTrue(payload["save_to_drive"])
+        self.assertEqual(payload["filename"], test_filename)
+        self.assertEqual(payload["mime_type"], "application/pdf")
+        self.assertEqual(len(payload["updates"]), 2)
+
+        # File must be deleted in finally block
+        self.assertFalse(target_path.exists())
+
+    @patch("engine.batch_exporter.httpx.Client")
+    def test_sync_exported_file_to_cloud_cleanup_on_failure(self, mock_client_cls):
+        """Verify temporary export file is cleaned up even if Apps Script call raises an exception."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.side_effect = Exception("Network timeout")
+        mock_client_cls.return_value = mock_client
+
+        test_filename = "test_export_fail.pdf"
+        target_path = batch_exporter.EXPORTS_DIR / test_filename
+        target_path.write_bytes(b"%PDF-1.4 dummy fail content")
+        self.assertTrue(target_path.exists())
+
+        result = batch_exporter.sync_exported_file_to_cloud(
+            filename=test_filename,
+            template_name="DevOps Course",
+            updates=[{"trainee_name": "Omar", "template_name": "DevOps Course"}],
+            total_records=1,
+            apps_script_url="https://script.google.com/macros/s/AKfycbxTest/exec",
+            drive_folder_id="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+        )
+
+        self.assertFalse(result["apps_script_synced"])
+        self.assertIn("Network timeout", result["apps_script_error"])
+        # Crucial check: file must be cleaned up despite the failure
+        self.assertFalse(target_path.exists())
+
+    @patch("engine.batch_exporter.httpx.Client")
+    def test_export_batch_api_two_stage_pipeline(self, mock_client_cls):
+        """Integration test for 2-stage batch export and cloud sync API flow."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = json.dumps({
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/stage2/view"
+        })
+        mock_resp.json.return_value = {
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/stage2/view"
+        }
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            # Stage 1: Fast Export with keep_file_for_sync=True and skip_cloud_sync=True
+            stage1_res = client.post("/api/export-batch", json={
+                "template_config": self.sample_template,
+                "records": self.sample_records,
+                "export_mode": "combined_pdf",
+                "skip_cloud_sync": True,
+                "keep_file_for_sync": True,
+                "apps_script_url": "https://script.google.com/macros/s/AKfycbxTest/exec",
+                "drive_folder_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+            })
+
+            self.assertEqual(stage1_res.status_code, 200)
+            self.assertEqual(stage1_res.headers.get("x-exported-count"), "2")
+            self.assertEqual(stage1_res.headers.get("x-apps-script-synced"), "false")
+            self.assertEqual(stage1_res.headers.get("x-drive-saved"), "false")
+
+            # Extract filename from Content-Disposition
+            # format: attachment; filename="..."; filename*=UTF-8''...
+            cd = stage1_res.headers.get("content-disposition", "")
+            self.assertIn("filename*=", cd)
+            expected_filename = "DevOps_Leadership_Course_2026-11-15.pdf"
+
+            # Check that file was KEPT on disk in EXPORTS_DIR because keep_file_for_sync=True
+            kept_file = batch_exporter.EXPORTS_DIR / expected_filename
+            self.assertTrue(kept_file.exists())
+
+            # Stage 2: Cloud Sync call
+            sync_payload = {
+                "filename": expected_filename,
+                "template_name": "DevOps Leadership Course",
+                "updates": [
+                    {"trainee_name": "Omar Farooq", "template_name": "DevOps Leadership Course"},
+                    {"trainee_name": "Sara Salem", "template_name": "DevOps Leadership Course"},
+                ],
+                "total_records": 2,
+                "apps_script_url": "https://script.google.com/macros/s/AKfycbxTest/exec",
+                "drive_folder_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+            }
+            stage2_res = client.post("/api/export-batch/cloud-sync", json=sync_payload)
+            self.assertEqual(stage2_res.status_code, 200)
+            data = stage2_res.json()
+            self.assertTrue(data["apps_script_synced"])
+            self.assertEqual(data["apps_script_updated"], 2)
+            self.assertTrue(data["drive_saved"])
+            self.assertEqual(data["drive_file_url"], "https://drive.google.com/file/d/stage2/view")
+
+            # Verify that the file was deleted after Stage 2
+            self.assertFalse(kept_file.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

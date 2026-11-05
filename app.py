@@ -838,6 +838,20 @@ class BatchExportRequest(BaseModel):
     sheet_url: Optional[str] = None
     drive_folder_url: Optional[str] = None
     drive_folder_id: Optional[str] = None
+    skip_cloud_sync: bool = False
+    keep_file_for_sync: bool = False
+
+
+class CloudSyncRequest(BaseModel):
+    filename: str
+    template_name: str
+    updates: List[Dict[str, str]]
+    total_records: int = 0
+    apps_script_url: Optional[str] = None
+    trainer_id: Optional[str] = None
+    sheet_url: Optional[str] = None
+    drive_folder_url: Optional[str] = None
+    drive_folder_id: Optional[str] = None
 
 
 class AppsScriptSyncRequest(BaseModel):
@@ -968,6 +982,7 @@ async def export_batch_endpoint(req: BatchExportRequest):
             sheet_url=target_sheet_url,
             drive_folder_url=drive_folder_url,
             drive_folder_id=drive_folder_id,
+            skip_cloud_sync=req.skip_cloud_sync,
         )
 
         file_path = result["file_path"]
@@ -987,10 +1002,12 @@ async def export_batch_endpoint(req: BatchExportRequest):
         encoded_filename = urllib.parse.quote(filename)
         content_disposition = f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
 
+        cleanup_task = None if req.keep_file_for_sync else BackgroundTask(safe_cleanup_file, file_path)
+
         return FileResponse(
             path=file_path,
             media_type=media_type,
-            background=BackgroundTask(safe_cleanup_file, file_path),
+            background=cleanup_task,
             headers={
                 "Content-Disposition": content_disposition,
                 "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced, X-Apps-Script-Updated, X-Apps-Script-Skipped, X-Apps-Script-Error, X-Drive-Saved, X-Drive-File-Url, X-Drive-Error",
@@ -1009,6 +1026,58 @@ async def export_batch_endpoint(req: BatchExportRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"فشل تصدير الشهادات: {str(e)}")
+
+
+@app.post("/api/export-batch/cloud-sync")
+async def export_batch_cloud_sync_endpoint(req: CloudSyncRequest):
+    """
+    Second stage of batch export pipeline:
+    Receives metadata of an exported file, uploads it to Google Drive (if configured),
+    updates Google Sheet via Google Apps Script (doPost), and cleans up the temporary file.
+    """
+    try:
+        if not req.filename:
+            raise HTTPException(status_code=400, detail="اسم الملف مطلوب للمزامنة السحابية")
+
+        target_apps_script = req.apps_script_url
+        target_sheet_url = req.sheet_url
+        target_trainer_id = req.trainer_id
+
+        if target_trainer_id:
+            t = trainer_manager.get_trainer(target_trainer_id)
+            if t:
+                if not target_sheet_url and t.get("sheet_url"):
+                    target_sheet_url = t["sheet_url"]
+                if not target_apps_script:
+                    if t.get("script_url"):
+                        target_apps_script = t["script_url"]
+                    elif t.get("sheet_url") and ("script.google.com" in t["sheet_url"] or "script.googleusercontent.com" in t["sheet_url"]):
+                        target_apps_script = t["sheet_url"]
+
+        global_settings = load_global_settings()
+        if not target_apps_script and global_settings.get("global_apps_script_url"):
+            target_apps_script = global_settings["global_apps_script_url"].strip()
+
+        drive_folder_url = req.drive_folder_url or global_settings.get("drive_folder_url")
+        drive_folder_id = req.drive_folder_id or global_settings.get("drive_folder_id")
+
+        result = batch_exporter.sync_exported_file_to_cloud(
+            filename=req.filename,
+            template_name=req.template_name,
+            updates=req.updates,
+            total_records=req.total_records,
+            apps_script_url=target_apps_script,
+            sheet_url=target_sheet_url,
+            drive_folder_url=drive_folder_url,
+            drive_folder_id=drive_folder_id,
+        )
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Cloud sync error: {e}")
+        raise HTTPException(status_code=500, detail=f"فشل المزامنة السحابية: {str(e)}")
 
 
 if __name__ == "__main__":

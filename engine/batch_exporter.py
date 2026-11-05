@@ -166,6 +166,7 @@ def execute_batch_export(
     sheet_url: Optional[str] = None,
     drive_folder_url: Optional[str] = None,
     drive_folder_id: Optional[str] = None,
+    skip_cloud_sync: bool = False,
 ) -> Dict[str, Any]:
     """
     Executes high-speed batch export.
@@ -347,9 +348,98 @@ def execute_batch_export(
         if t_name:
             updates.append({"trainee_name": t_name, "template_name": template_name})
 
-    # Resolve Google Drive folder ID (from parameters)
+    apps_script_synced = False
+    apps_script_updated = 0
+    apps_script_error = None
+    apps_script_skipped = False
+    drive_saved = False
+    drive_file_url = ""
+    drive_error = ""
+
+    if not skip_cloud_sync:
+        cloud_res = _perform_cloud_sync(
+            file_path=out_path,
+            filename=out_filename,
+            media_type=media_type,
+            template_name=template_name,
+            updates=updates,
+            total_records=total_records,
+            exported_count=len(processed_records),
+            apps_script_url=apps_script_url,
+            sheet_url=sheet_url,
+            drive_folder_url=drive_folder_url,
+            drive_folder_id=drive_folder_id,
+        )
+        apps_script_synced = cloud_res["apps_script_synced"]
+        apps_script_updated = cloud_res["apps_script_updated"]
+        apps_script_skipped = cloud_res["apps_script_skipped"]
+        apps_script_error = cloud_res["apps_script_error"]
+        drive_saved = cloud_res["drive_saved"]
+        drive_file_url = cloud_res["drive_file_url"]
+        drive_error = cloud_res["drive_error"]
+
+        target_script_url = apps_script_url.strip() if (apps_script_url and apps_script_url.strip()) else None
+        if not target_script_url and webhook_url and ("script.google.com" in webhook_url or "script.googleusercontent.com" in webhook_url):
+            target_script_url = webhook_url.strip()
+
+        # General Webhook Notification if provided and different from script_url
+        if webhook_url and webhook_url.strip() and webhook_url.strip() != target_script_url:
+            try:
+                httpx.post(
+                    webhook_url.strip(),
+                    json={
+                        "event": "certflow_export_completed",
+                        "template_name": template_name,
+                        "exported_count": len(processed_records),
+                        "total_count": total_records,
+                        "filename": out_filename,
+                        "export_mode": export_mode,
+                        "timestamp": timestamp,
+                        "updates": updates,
+                    },
+                    timeout=5.0,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to trigger webhook {webhook_url}: {e}")
+
+    report_summary = f"تم تصدير {len(processed_records)} شهادة بنجاح بصيغة {export_mode}."
+    return {
+        "file_path": str(out_path),
+        "filename": out_filename,
+        "media_type": media_type,
+        "total_records": total_records,
+        "exported_count": len(processed_records),
+        "warnings_count": len(warnings),
+        "warnings": warnings,
+        "report_summary": report_summary,
+        "apps_script_synced": apps_script_synced,
+        "apps_script_updated": apps_script_updated,
+        "apps_script_skipped": apps_script_skipped,
+        "apps_script_error": apps_script_error or "",
+        "drive_saved": drive_saved,
+        "drive_file_url": drive_file_url,
+        "drive_error": drive_error or "",
+        "updates": updates,
+    }
+
+
+def _perform_cloud_sync(
+    file_path: Optional[Path],
+    filename: str,
+    media_type: str,
+    template_name: str,
+    updates: List[Dict[str, str]],
+    total_records: int,
+    exported_count: int,
+    apps_script_url: Optional[str] = None,
+    sheet_url: Optional[str] = None,
+    drive_folder_url: Optional[str] = None,
+    drive_folder_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Internal helper to execute Google Apps Script write-back and Drive upload."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     resolved_drive_id = drive_folder_id or extract_drive_folder_id(drive_folder_url)
-    should_save_to_drive = bool(resolved_drive_id and out_path.exists())
+    should_save_to_drive = bool(resolved_drive_id and file_path and file_path.exists())
 
     apps_script_synced = False
     apps_script_updated = 0
@@ -360,8 +450,6 @@ def execute_batch_export(
     drive_error = ""
 
     target_script_url = apps_script_url.strip() if (apps_script_url and apps_script_url.strip()) else None
-    if not target_script_url and webhook_url and ("script.google.com" in webhook_url or "script.googleusercontent.com" in webhook_url):
-        target_script_url = webhook_url.strip()
     if not target_script_url:
         try:
             settings_path = Path(__file__).resolve().parent.parent / "templates_store" / "global_settings.json"
@@ -373,7 +461,6 @@ def execute_batch_export(
         except Exception:
             pass
 
-    # Google Apps Script Write-Back & Drive Upload (doPost)
     if target_script_url:
         if not updates and not should_save_to_drive:
             # FIX 5: Distinguish zero trainee names from Apps Script failure
@@ -392,17 +479,17 @@ def execute_batch_export(
                     "sheet_url": clean_sheet_url,
                     "updates": updates,
                     "template_name": template_name,
-                    "exported_count": len(processed_records),
-                    "total_count": total_records,
+                    "exported_count": exported_count,
+                    "total_count": total_records or exported_count,
                     "timestamp": timestamp,
                 }
 
                 if should_save_to_drive:
                     try:
-                        file_bytes = out_path.read_bytes()
+                        file_bytes = file_path.read_bytes()
                         script_payload["save_to_drive"] = True
                         script_payload["drive_folder_id"] = resolved_drive_id
-                        script_payload["filename"] = out_filename
+                        script_payload["filename"] = filename
                         script_payload["mime_type"] = media_type
                         script_payload["file_base64"] = base64.b64encode(file_bytes).decode("utf-8")
                     except Exception as fe:
@@ -479,36 +566,7 @@ def execute_batch_export(
                 if should_save_to_drive and not drive_error:
                     drive_error = apps_script_error
 
-    # General Webhook Notification if provided and different from script_url
-    if webhook_url and webhook_url.strip() and webhook_url.strip() != target_script_url:
-        try:
-            httpx.post(
-                webhook_url.strip(),
-                json={
-                    "event": "certflow_export_completed",
-                    "template_name": template_name,
-                    "exported_count": len(processed_records),
-                    "total_count": total_records,
-                    "filename": out_filename,
-                    "export_mode": export_mode,
-                    "timestamp": timestamp,
-                    "updates": updates,
-                },
-                timeout=5.0,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to trigger webhook {webhook_url}: {e}")
-
-    report_summary = f"تم تصدير {len(processed_records)} شهادة بنجاح بصيغة {export_mode}."
     return {
-        "file_path": str(out_path),
-        "filename": out_filename,
-        "media_type": media_type,
-        "total_records": total_records,
-        "exported_count": len(processed_records),
-        "warnings_count": len(warnings),
-        "warnings": warnings,
-        "report_summary": report_summary,
         "apps_script_synced": apps_script_synced,
         "apps_script_updated": apps_script_updated,
         "apps_script_skipped": apps_script_skipped,
@@ -517,4 +575,43 @@ def execute_batch_export(
         "drive_file_url": drive_file_url,
         "drive_error": drive_error or "",
     }
+
+
+def sync_exported_file_to_cloud(
+    filename: str,
+    template_name: str,
+    updates: List[Dict[str, str]],
+    total_records: int,
+    apps_script_url: Optional[str] = None,
+    sheet_url: Optional[str] = None,
+    drive_folder_url: Optional[str] = None,
+    drive_folder_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Executes Google Apps Script write-back and Google Drive upload for an already exported file,
+    then safely cleans up the temporary file from EXPORTS_DIR in a finally block.
+    """
+    file_path = EXPORTS_DIR / Path(filename).name
+    media_type = "application/pdf" if filename.lower().endswith(".pdf") else "application/zip"
+    try:
+        return _perform_cloud_sync(
+            file_path=file_path,
+            filename=Path(filename).name,
+            media_type=media_type,
+            template_name=template_name,
+            updates=updates,
+            total_records=total_records,
+            exported_count=len(updates),
+            apps_script_url=apps_script_url,
+            sheet_url=sheet_url,
+            drive_folder_url=drive_folder_url,
+            drive_folder_id=drive_folder_id,
+        )
+    finally:
+        if file_path.exists():
+            try:
+                file_path.unlink()
+                logger.info(f"[Export Cleanup] Cleaned up temporary export file: {file_path.name}")
+            except Exception as e:
+                logger.warning(f"Could not delete temporary export file {file_path}: {e}")
 

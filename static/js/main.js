@@ -317,6 +317,9 @@ const translations = {
     batch_webhook_ph: "رابط Google Apps Script للكتابة الراجعة...",
     batch_webhook_hint: "يتم إرسال أسماء القوالب المعتمدة تلقائياً لكل متدرب عبر doPost لتطبيق Google Apps Script.",
     batch_loading_text: "جاري رندرة وتوليد حزمة الشهادات بمحرك الطباعة الفائقة... يرجى الانتظار",
+    batch_progress_init: "جاري التحضير وتجهيز ملفات الشهادات...",
+    batch_step1_label: "المرحلة 1: رندرة Prepress عالية الدقة وتحميل الملف",
+    batch_step2_label: "المرحلة 2: رفع الملف إلى Google Drive وتحديث الجدول",
     btn_start_batch_export: "بدء التصدير وتحميل الملف",
     pin_modal_title: "رمز الدخول لاستوديو المصمم",
     pin_modal_subtitle: "يرجى إدخال الرقم السري لحماية القوالب من التعديل غير المقصود",
@@ -704,6 +707,9 @@ const translations = {
     batch_webhook_ph: "Google Apps Script Web App URL for write-back...",
     batch_webhook_hint: "Approved Certificate names are automatically synced per trainee via doPost.",
     batch_loading_text: "Rendering and generating certificate batch with Prepress engine... Please wait",
+    batch_progress_init: "Preparing and generating certificate batch...",
+    batch_step1_label: "Stage 1: Prepress High-DPI Rendering & File Download",
+    batch_step2_label: "Stage 2: Google Drive Upload & Sheet Sync",
     btn_start_batch_export: "Start Export & Download",
     pin_modal_title: "Designer Studio Access PIN",
     pin_modal_subtitle: "Please enter security PIN to protect templates from unintended modifications",
@@ -2411,6 +2417,33 @@ function resetOperatorData() {
 // Batch Export Modal & Actions
 // ----------------------------------------------------------
 
+function updateBatchProgressUI(pct, titleText, step1Html, step2Html, barColorClass) {
+  const pctEl = document.getElementById("batch-progress-pct");
+  const barEl = document.getElementById("batch-progress-bar");
+  const titleEl = document.getElementById("batch-progress-stage-title");
+  const step1El = document.getElementById("batch-step1-status");
+  const step2El = document.getElementById("batch-step2-status");
+
+  if (pctEl && pct !== undefined && pct !== null) {
+    pctEl.textContent = `${Math.round(pct)}%`;
+  }
+  if (barEl && pct !== undefined && pct !== null) {
+    barEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    if (barColorClass) {
+      barEl.className = `h-full ${barColorClass} transition-all duration-300 rounded-full`;
+    }
+  }
+  if (titleEl && titleText !== undefined && titleText !== null) {
+    titleEl.innerHTML = titleText;
+  }
+  if (step1El && step1Html !== undefined && step1Html !== null) {
+    step1El.innerHTML = step1Html;
+  }
+  if (step2El && step2Html !== undefined && step2Html !== null) {
+    step2El.innerHTML = step2Html;
+  }
+}
+
 function openBatchExportModal() {
   if (!operatorRecords || operatorRecords.length === 0) {
     showToast(t("toast_no_records_export"), "warning");
@@ -2452,6 +2485,19 @@ function openBatchExportModal() {
     else scriptBadge.classList.add("hidden");
   }
 
+  const loadingIndicator = document.getElementById("batch-export-loading");
+  if (loadingIndicator) loadingIndicator.classList.add("hidden");
+  const submitBtn = document.getElementById("btn-start-batch-export");
+  if (submitBtn) submitBtn.disabled = false;
+
+  updateBatchProgressUI(
+    0,
+    currentLang === "ar" ? "جاري التحضير وتجهيز ملفات الشهادات..." : "Preparing certificate batch...",
+    currentLang === "ar" ? "المرحلة 1: رندرة Prepress عالية الدقة وتحميل الملف" : "Stage 1: Prepress High-DPI Rendering & File Download",
+    currentLang === "ar" ? "المرحلة 2: رفع الملف إلى Google Drive وتحديث الجدول" : "Stage 2: Google Drive Upload & Sheet Sync",
+    "bg-brand-secondary"
+  );
+
   if (modal) {
     modal.classList.remove("hidden");
   }
@@ -2461,6 +2507,10 @@ function openBatchExportModal() {
 function closeBatchExportModal() {
   const modal = document.getElementById("batch-export-modal");
   if (modal) modal.classList.add("hidden");
+  const loadingIndicator = document.getElementById("batch-export-loading");
+  if (loadingIndicator) loadingIndicator.classList.add("hidden");
+  const submitBtn = document.getElementById("btn-start-batch-export");
+  if (submitBtn) submitBtn.disabled = false;
 }
 
 async function exportBatchSubmit() {
@@ -2481,9 +2531,7 @@ async function exportBatchSubmit() {
 
   const submitBtn = document.getElementById("btn-start-batch-export");
   const loadingIndicator = document.getElementById("batch-export-loading");
-
-  if (submitBtn) submitBtn.disabled = true;
-  if (loadingIndicator) loadingIndicator.classList.remove("hidden");
+  const isAr = currentLang === "ar";
 
   // Pre-format records
   const formattedRecords = operatorRecords.map((rec) => {
@@ -2523,33 +2571,76 @@ async function exportBatchSubmit() {
   }
 
   const sheetUrl = trainer?.sheet_url || "";
+  const needsCloudSync = Boolean(appsScriptUrl);
 
-  const payload = {
-    template_config: operatorActiveTemplate,
-    template_id: operatorActiveTemplate.id,
-    records: formattedRecords,
-    export_mode: exportMode,
-    range_str: rangeStr,
-    filename_prefix: prefix,
-    dpi: dpi,
-    webhook_url: webhookUrl,
-    apps_script_url: appsScriptUrl,
-    trainer_id: operatorActiveTrainerId || "",
-    sheet_url: sheetUrl,
-    drive_folder_url: currentGlobalSettings.drive_folder_url || "",
-    drive_folder_id: currentGlobalSettings.drive_folder_id || "",
-  };
+  let stage1Interval = null;
+  let stage2Interval = null;
 
   try {
+    if (submitBtn) submitBtn.disabled = true;
+    if (loadingIndicator) loadingIndicator.classList.remove("hidden");
+
+    // Stage 1 Initial UI setup
+    let currentPct = 10;
+    const stage1Title = isAr
+      ? `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand-secondary inline-block"></i> <span>جاري رندرة وتوليد ملف الشهادات (Prepress 300 DPI)...</span>`
+      : `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand-secondary inline-block"></i> <span>Rendering certificates (Prepress 300 DPI)...</span>`;
+
+    const step1Initial = isAr
+      ? `<span class="text-amber-500 font-bold">⏳</span> <span class="text-slate-700 font-semibold">المرحلة 1: رندرة Prepress عالية الدقة وتجهيز الملف...</span>`
+      : `<span class="text-amber-500 font-bold">⏳</span> <span class="text-slate-700 font-semibold">Stage 1: Prepress High-DPI Rendering & File Prep...</span>`;
+
+    const step2Initial = needsCloudSync
+      ? (isAr
+          ? `<span class="text-slate-300 font-bold">○</span> <span class="text-slate-400">المرحلة 2: رفع الملف إلى Google Drive وتحديث الجدول</span>`
+          : `<span class="text-slate-300 font-bold">○</span> <span class="text-slate-400">Stage 2: Google Drive Upload & Sheet Sync</span>`)
+      : (isAr
+          ? `<span class="text-slate-300 font-bold">-</span> <span class="text-slate-400">المرحلة 2: غير مفعلة (لا يوجد رابط Apps Script)</span>`
+          : `<span class="text-slate-300 font-bold">-</span> <span class="text-slate-400">Stage 2: Skipped (no Apps Script configured)</span>`);
+
+    updateBatchProgressUI(currentPct, stage1Title, step1Initial, step2Initial, "bg-brand-secondary");
+
+    // Smoothly increment up to 45% during generation
+    stage1Interval = setInterval(() => {
+      if (currentPct < 45) {
+        currentPct += Math.random() * 4 + 2;
+        if (currentPct > 45) currentPct = 45;
+        updateBatchProgressUI(currentPct, null, null, null);
+      }
+    }, 350);
+
+    const payload = {
+      template_config: operatorActiveTemplate,
+      template_id: operatorActiveTemplate.id,
+      records: formattedRecords,
+      export_mode: exportMode,
+      range_str: rangeStr,
+      filename_prefix: prefix,
+      dpi: dpi,
+      webhook_url: webhookUrl,
+      apps_script_url: appsScriptUrl,
+      trainer_id: operatorActiveTrainerId || "",
+      sheet_url: sheetUrl,
+      drive_folder_url: currentGlobalSettings.drive_folder_url || "",
+      drive_folder_id: currentGlobalSettings.drive_folder_id || "",
+      skip_cloud_sync: true,
+      keep_file_for_sync: needsCloudSync,
+    };
+
     const response = await fetch("/api/export-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
+    if (stage1Interval) {
+      clearInterval(stage1Interval);
+      stage1Interval = null;
+    }
+
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.detail || "فشل تصدير الشهادات");
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || (isAr ? "فشل تصدير الشهادات" : "Failed to export certificates"));
     }
 
     let downloadFilename = exportMode === "combined_pdf" ? `${prefix}_Certificates.pdf` : `${prefix}_Certificates.zip`;
@@ -2570,33 +2661,8 @@ async function exportBatchSubmit() {
 
     const exportedCount = response.headers.get("X-Exported-Count") || formattedRecords.length;
     const warningsCount = response.headers.get("X-Warnings-Count") || "0";
-    const isAppsScriptSynced = response.headers.get("X-Apps-Script-Synced") === "true";
-    const isAppsScriptSkipped = response.headers.get("X-Apps-Script-Skipped") === "true";
-    let appsScriptError = "";
-    try {
-      const rawErr = response.headers.get("X-Apps-Script-Error") || "";
-      appsScriptError = rawErr ? decodeURIComponent(rawErr) : "";
-    } catch (_) {
-      appsScriptError = response.headers.get("X-Apps-Script-Error") || "";
-    }
-    const appsScriptUpdated = parseInt(response.headers.get("X-Apps-Script-Updated") || "0", 10);
 
-    const isDriveSaved = response.headers.get("X-Drive-Saved") === "true";
-    let driveFileUrl = "";
-    try {
-      const rawUrl = response.headers.get("X-Drive-File-Url") || "";
-      driveFileUrl = rawUrl ? decodeURIComponent(rawUrl) : "";
-    } catch (_) {
-      driveFileUrl = response.headers.get("X-Drive-File-Url") || "";
-    }
-    let driveError = "";
-    try {
-      const rawDriveErr = response.headers.get("X-Drive-Error") || "";
-      driveError = rawDriveErr ? decodeURIComponent(rawDriveErr) : "";
-    } catch (_) {
-      driveError = response.headers.get("X-Drive-Error") || "";
-    }
-
+    // Immediate Browser File Download (Stage 1 Complete)
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2606,6 +2672,13 @@ async function exportBatchSubmit() {
     a.click();
     window.URL.revokeObjectURL(downloadUrl);
     document.body.removeChild(a);
+
+    // Set progress to 50% & update Step 1 status
+    currentPct = 50;
+    const step1DoneHtml = isAr
+      ? `<span class="text-emerald-600 font-bold">✓</span> <span class="text-emerald-700 font-bold">تم تجهيز وتحميل ملف الشهادات بنجاح</span>`
+      : `<span class="text-emerald-600 font-bold">✓</span> <span class="text-emerald-700 font-bold">Certificate file ready & downloaded</span>`;
+    updateBatchProgressUI(currentPct, null, step1DoneHtml, null);
 
     // Mark exported records as issued in memory
     const exportedNames = new Set(formattedRecords.map((r) => r.trainee_name || r.Trainee_Name));
@@ -2617,68 +2690,213 @@ async function exportBatchSubmit() {
       }
     });
 
-    closeBatchExportModal();
-    showToast(`تم تصدير ${exportedCount} شهادة بنجاح وتحميل الملف (${downloadFilename})`, "success");
-
-    // Re-apply sheet filters to update counter and hide issued records
     applySheetFilters();
 
-    // Refresh pending certificates summary in sidebar
     if (typeof refreshPendingTrainersSummary === "function") {
       refreshPendingTrainersSummary();
     }
 
-    // Google Drive Upload Feedback
-    if (isDriveSaved) {
-      setTimeout(() => {
-        const msg = currentLang === "ar"
-          ? "تم رفع الملف تلقائياً إلى Google Drive بنجاح"
-          : "File automatically uploaded to Google Drive successfully";
-        const linkHtml = driveFileUrl
-          ? ` (<a href="${driveFileUrl}" target="_blank" class="underline font-bold">${currentLang === "ar" ? "فتح في درايف" : "Open in Drive"}</a>)`
-          : "";
-        showToast(`${msg}${linkHtml}`, "success");
-      }, 1500);
-    } else if (driveError) {
-      setTimeout(() => {
-        const prefix = currentLang === "ar" ? "تنبيه: تعذر الرفع إلى Google Drive: " : "Warning: Failed to upload to Google Drive: ";
-        showToast(`${prefix}${driveError}`, "warning");
-      }, 1600);
-    }
+    // Stage 2: Cloud Sync (Google Drive Upload & Sheet Sync)
+    if (needsCloudSync) {
+      currentPct = 55;
+      const stage2Title = isAr
+        ? `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand-secondary inline-block"></i> <span>جاري رفع الملف إلى Google Drive وتحديث الجدول...</span>`
+        : `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand-secondary inline-block"></i> <span>Uploading to Google Drive & syncing Google Sheet...</span>`;
+      const step2InProgress = isAr
+        ? `<span class="text-amber-500 font-bold">⏳</span> <span class="text-slate-700 font-semibold">المرحلة 2: جاري المزامنة السحابية مع Google...</span>`
+        : `<span class="text-amber-500 font-bold">⏳</span> <span class="text-slate-700 font-semibold">Stage 2: Cloud sync with Google in progress...</span>`;
 
-    // Truthful Apps Script Sync Feedback (no false positives, FIX 5)
-    if (appsScriptUrl) {
-      if (isAppsScriptSkipped) {
+      updateBatchProgressUI(currentPct, stage2Title, null, step2InProgress, "bg-brand-secondary");
+
+      stage2Interval = setInterval(() => {
+        if (currentPct < 92) {
+          currentPct += Math.random() * 3 + 1.5;
+          if (currentPct > 92) currentPct = 92;
+          updateBatchProgressUI(currentPct, null, null, null);
+        }
+      }, 400);
+
+      const syncPayload = {
+        filename: downloadFilename,
+        template_name: operatorActiveTemplate.name || "",
+        updates: formattedRecords.map((r) => ({
+          trainee_name: r.trainee_name,
+          template_name: operatorActiveTemplate.name || "",
+        })),
+        total_records: formattedRecords.length,
+        apps_script_url: appsScriptUrl,
+        trainer_id: operatorActiveTrainerId || "",
+        sheet_url: sheetUrl,
+        drive_folder_url: currentGlobalSettings.drive_folder_url || "",
+        drive_folder_id: currentGlobalSettings.drive_folder_id || "",
+      };
+
+      let syncResData = {};
+      try {
+        const syncRes = await fetch("/api/export-batch/cloud-sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(syncPayload),
+        });
+        if (syncRes.ok) {
+          syncResData = await syncRes.json();
+        } else {
+          const errData = await syncRes.json().catch(() => ({}));
+          syncResData = {
+            apps_script_synced: false,
+            apps_script_error: errData.detail || `HTTP ${syncRes.status}`,
+            drive_saved: false,
+            drive_error: errData.detail || `HTTP ${syncRes.status}`,
+          };
+        }
+      } catch (syncErr) {
+        syncResData = {
+          apps_script_synced: false,
+          apps_script_error: syncErr.message,
+          drive_saved: false,
+          drive_error: syncErr.message,
+        };
+      } finally {
+        if (stage2Interval) {
+          clearInterval(stage2Interval);
+          stage2Interval = null;
+        }
+      }
+
+      const isDriveSaved = syncResData.drive_saved === true;
+      const driveFileUrl = syncResData.drive_file_url || "";
+      const driveError = syncResData.drive_error || "";
+      const isAppsScriptSynced = syncResData.apps_script_synced === true;
+      const isAppsScriptSkipped = syncResData.apps_script_skipped === true;
+      const appsScriptUpdated = parseInt(syncResData.apps_script_updated || "0", 10);
+      const appsScriptError = syncResData.apps_script_error || "";
+
+      let step2DoneHtml = "";
+      if (isDriveSaved || isAppsScriptSynced) {
+        step2DoneHtml = isAr
+          ? `<span class="text-emerald-600 font-bold">✓</span> <span class="text-emerald-700 font-bold">تمت المزامنة السحابية بنجاح</span>`
+          : `<span class="text-emerald-600 font-bold">✓</span> <span class="text-emerald-700 font-bold">Cloud sync completed successfully</span>`;
+      } else {
+        step2DoneHtml = isAr
+          ? `<span class="text-amber-500 font-bold">⚠</span> <span class="text-amber-700 font-bold">اكتملت المزامنة مع تنبيهات</span>`
+          : `<span class="text-amber-500 font-bold">⚠</span> <span class="text-amber-700 font-bold">Cloud sync finished with alerts</span>`;
+      }
+
+      const titleCompleted = isAr
+        ? `<span class="text-emerald-700 font-bold">✓ اكتملت العملية بالكامل (100%)</span>`
+        : `<span class="text-emerald-700 font-bold">✓ Process completed (100%)</span>`;
+
+      updateBatchProgressUI(100, titleCompleted, null, step2DoneHtml, "bg-emerald-500");
+
+      // Wait 900ms so the user clearly sees 100% completion
+      await new Promise((resolve) => setTimeout(resolve, 900));
+
+      closeBatchExportModal();
+
+      showToast(
+        isAr
+          ? `تم تصدير ${exportedCount} شهادة بنجاح وتحميل الملف (${downloadFilename})`
+          : `Successfully exported ${exportedCount} certificate(s) and downloaded file (${downloadFilename})`,
+        "success"
+      );
+
+      // Google Drive Upload Feedback Toast
+      if (isDriveSaved) {
         setTimeout(() => {
-          showToast("تنبيه: لم يتم تحديث قوقل شيت لعدم وجود حقل اسم متدرب في السجلات المحددة", "info");
+          const msg = isAr
+            ? "تم رفع الملف تلقائياً إلى Google Drive بنجاح"
+            : "File automatically uploaded to Google Drive successfully";
+          const linkHtml = driveFileUrl
+            ? ` (<a href="${driveFileUrl}" target="_blank" class="underline font-bold">${isAr ? "فتح في درايف" : "Open in Drive"}</a>)`
+            : "";
+          showToast(`${msg}${linkHtml}`, "success");
         }, 1000);
-      } else if (isAppsScriptSynced) {
-        if (appsScriptUpdated > 0) {
+      } else if (driveError) {
+        setTimeout(() => {
+          const prefix = isAr ? "تنبيه: تعذر الرفع إلى Google Drive: " : "Warning: Failed to upload to Google Drive: ";
+          showToast(`${prefix}${driveError}`, "warning");
+        }, 1100);
+      }
+
+      // Google Apps Script Feedback Toast
+      if (appsScriptUrl) {
+        if (isAppsScriptSkipped) {
           setTimeout(() => {
-            showToast(`تم تحديث اسم القالب "${operatorActiveTemplate.name}" في قوقل شيت بنجاح (${appsScriptUpdated} متدرب)`, "success");
-          }, 1000);
+            showToast(
+              isAr
+                ? "تنبيه: لم يتم تحديث قوقل شيت لعدم وجود حقل اسم متدرب في السجلات المحددة"
+                : "Warning: Google Sheet was not updated because no trainee name was found in records",
+              "info"
+            );
+          }, 1200);
+        } else if (isAppsScriptSynced) {
+          if (appsScriptUpdated > 0) {
+            setTimeout(() => {
+              showToast(
+                isAr
+                  ? `تم تحديث اسم القالب "${operatorActiveTemplate.name}" في قوقل شيت بنجاح (${appsScriptUpdated} متدرب)`
+                  : `Successfully updated template name "${operatorActiveTemplate.name}" in Google Sheet (${appsScriptUpdated} trainees)`,
+                "success"
+              );
+            }, 1200);
+          } else {
+            setTimeout(() => {
+              showToast(
+                isAr
+                  ? "تنبيه: تم الاتصال بـ Google Apps Script ولكن لم يتم العثور على أي من الأسماء في قوقل شيت (0 متدرب)"
+                  : "Notice: Connected to Google Apps Script, but 0 matching trainee names were found in sheet",
+                "warning"
+              );
+            }, 1200);
+          }
         } else {
           setTimeout(() => {
-            showToast("تنبيه: تم الاتصال بـ Google Apps Script ولكن لم يتم العثور على أي من الأسماء في قوقل شيت (0 متدرب)", "warning");
-          }, 1000);
+            const reason = appsScriptError || (isAr ? "تحقق من إعدادات النشر وصلاحيات المشاركة في قوقل شيت" : "Check deployment settings and sharing permissions");
+            showToast(
+              isAr
+                ? `تنبيه: تعذر تحديث قوقل شيت عبر Apps Script: ${reason}`
+                : `Warning: Failed to sync Google Sheet via Apps Script: ${reason}`,
+              "error"
+            );
+          }, 1300);
         }
-      } else {
-        setTimeout(() => {
-          const reason = appsScriptError || "تحقق من إعدادات النشر وصلاحيات المشاركة في قوقل شيت";
-          showToast(`تنبيه: تعذر تحديث قوقل شيت عبر Apps Script: ${reason}`, "error");
-        }, 1200);
       }
+    } else {
+      // No cloud sync needed -> Jump to 100%, wait 500ms, close modal
+      const step2SkippedHtml = isAr
+        ? `<span class="text-slate-400 font-bold">-</span> <span class="text-slate-400">المرحلة 2: غير مفعلة (لا يوجد رابط Apps Script)</span>`
+        : `<span class="text-slate-400 font-bold">-</span> <span class="text-slate-400">Stage 2: Skipped (no Apps Script configured)</span>`;
+      const titleCompleted = isAr
+        ? `<span class="text-emerald-700 font-bold">✓ اكتمل التصدير والتحميل بنجاح (100%)</span>`
+        : `<span class="text-emerald-700 font-bold">✓ Export & download completed (100%)</span>`;
+
+      updateBatchProgressUI(100, titleCompleted, null, step2SkippedHtml, "bg-emerald-500");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      closeBatchExportModal();
+      showToast(
+        isAr
+          ? `تم تصدير ${exportedCount} شهادة بنجاح وتحميل الملف (${downloadFilename})`
+          : `Successfully exported ${exportedCount} certificate(s) and downloaded file (${downloadFilename})`,
+        "success"
+      );
     }
 
     if (parseInt(warningsCount, 10) > 0) {
       setTimeout(() => {
-        showToast(`تنبيه: تم رصد ${warningsCount} ملاحظة تقليص خط لأسماء تجاوزت الإطار`, "warning");
+        showToast(
+          isAr
+            ? `تنبيه: تم رصد ${warningsCount} ملاحظة تقليص خط لأسماء تجاوزت الإطار`
+            : `Notice: ${warningsCount} font auto-shrink alert(s) for names exceeding frame bounds`,
+          "warning"
+        );
       }, 2000);
     }
   } catch (err) {
     console.error("Batch export error:", err);
     showToast(err.message, "error");
   } finally {
+    if (stage1Interval) clearInterval(stage1Interval);
+    if (stage2Interval) clearInterval(stage2Interval);
     if (submitBtn) submitBtn.disabled = false;
     if (loadingIndicator) loadingIndicator.classList.add("hidden");
   }
