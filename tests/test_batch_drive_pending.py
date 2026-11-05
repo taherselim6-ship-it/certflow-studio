@@ -96,6 +96,72 @@ class TestBatchDrivePending(unittest.TestCase):
                     self.assertIn("DevOps_Leadership_Course_2026-11-15_002_Sara_Salem.pdf", namelist)
                 zip_p.unlink()
 
+    def test_batch_export_date_extraction_priority(self):
+        """Verify date_only / iso_date takes priority over localized training_date."""
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        records_with_localized_date = [
+            {
+                "Trainee_Name": "أحمد علي",
+                "date_only": "2026-11-20",
+                "iso_date": "2026-11-20",
+                "training_date": "نوفمبر ٢٠، ٢٠٢٦",
+                "Training_Date": "نوفمبر ٢٠، ٢٠٢٦",
+            }
+        ]
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            result = batch_exporter.execute_batch_export(
+                template_config=self.sample_template,
+                records=records_with_localized_date,
+                export_mode="combined_pdf",
+                range_str="ALL",
+            )
+            # Must extract 2026-11-20 rather than localized Arabic text
+            self.assertEqual(result["filename"], "DevOps_Leadership_Course_2026-11-20.pdf")
+            p = Path(result["file_path"])
+            if p.exists():
+                p.unlink()
+
+    def test_export_batch_endpoint_content_disposition_arabic(self):
+        """Verify /api/export-batch handles Arabic template names without latin-1 encoding crashes."""
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        arabic_template = {
+            "id": "tpl_arabic_test",
+            "name": "شهادة القيادة المتقدمة",
+            "dimensions": {"width_mm": 297, "height_mm": 210},
+            "page_setup": {"width_mm": 297, "height_mm": 210, "bleed_mm": 3},
+            "elements": {}
+        }
+        arabic_records = [
+            {"Trainee_Name": "محمد عبد الله", "date_only": "2026-11-05"}
+        ]
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            res = client.post("/api/export-batch", json={
+                "template_config": arabic_template,
+                "records": arabic_records,
+                "export_mode": "combined_pdf",
+                "range_str": "ALL",
+            })
+            self.assertEqual(res.status_code, 200)
+            cd = res.headers.get("Content-Disposition", "")
+            self.assertIn("filename*=", cd)
+            self.assertIn("UTF-8''", cd)
+            # Confirm Latin-1 / ASCII safe fallback is present
+            self.assertIn("filename=", cd)
+
     def test_global_settings_endpoints(self):
         # 1. GET settings
         get_res = client.get("/api/settings")

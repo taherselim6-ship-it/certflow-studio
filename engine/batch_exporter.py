@@ -198,9 +198,10 @@ def execute_batch_export(
     # Extract training date from first selected record, fallback to YYYY-MM-DD
     first_rec = records[selected_indices[0]] if selected_indices and len(records) > selected_indices[0] else {}
     raw_training_date = (
-        first_rec.get("training_date")
-        or first_rec.get("Training_Date")
+        first_rec.get("date_only")
         or first_rec.get("iso_date")
+        or first_rec.get("training_date")
+        or first_rec.get("Training_Date")
         or now.strftime("%Y-%m-%d")
     )
     clean_date = sanitize_filename(str(raw_training_date).strip())

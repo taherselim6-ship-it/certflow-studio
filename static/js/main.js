@@ -847,7 +847,6 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchFonts();
   fetchTrainers();
   fetchDriveSettings();
-  fetchPendingTrainersSummary();
   initOperatorPlatform();
   lucide.createIcons();
 });
@@ -2555,10 +2554,17 @@ async function exportBatchSubmit() {
 
     let downloadFilename = exportMode === "combined_pdf" ? `${prefix}_Certificates.pdf` : `${prefix}_Certificates.zip`;
     const disposition = response.headers.get("Content-Disposition");
-    if (disposition && disposition.indexOf("filename=") !== -1) {
-      const match = disposition.match(/filename="?([^"]+)"?/);
-      if (match && match[1]) {
-        downloadFilename = match[1];
+    if (disposition) {
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      const asciiMatch = disposition.match(/filename="?([^";]+)"?/i);
+      if (utf8Match && utf8Match[1]) {
+        try {
+          downloadFilename = decodeURIComponent(utf8Match[1]);
+        } catch (_) {
+          downloadFilename = utf8Match[1];
+        }
+      } else if (asciiMatch && asciiMatch[1]) {
+        downloadFilename = asciiMatch[1];
       }
     }
 
@@ -5202,8 +5208,8 @@ async function saveDriveSettings() {
 // Pending Certificates Summary Engine
 // ==========================================================
 async function fetchPendingTrainersSummary() {
-  const spinner = document.getElementById("pending-refresh-spinner");
-  if (spinner) spinner.classList.add("animate-spin");
+  const startSpinner = document.getElementById("pending-refresh-spinner");
+  if (startSpinner) startSpinner.classList.add("animate-spin");
 
   try {
     const res = await fetch("/api/trainers/pending-summary");
@@ -5214,9 +5220,12 @@ async function fetchPendingTrainersSummary() {
   } catch (err) {
     console.error("fetchPendingTrainersSummary error:", err);
   } finally {
-    if (spinner) {
-      setTimeout(() => spinner.classList.remove("animate-spin"), 500);
-    }
+    setTimeout(() => {
+      const liveSpinner = document.getElementById("pending-refresh-spinner");
+      if (liveSpinner) {
+        liveSpinner.classList.remove("animate-spin");
+      }
+    }, 300);
   }
 }
 

@@ -981,13 +981,18 @@ async def export_batch_endpoint(req: BatchExportRequest):
         drive_file_url = urllib.parse.quote(result.get("drive_file_url") or "")
         drive_error = urllib.parse.quote(result.get("drive_error") or "")
 
+        ascii_filename = filename.encode("ascii", "ignore").decode("ascii").strip().replace('"', '')
+        if not ascii_filename or ascii_filename.startswith("."):
+            ascii_filename = "CertFlow_Export.pdf" if media_type == "application/pdf" else "CertFlow_Export.zip"
+        encoded_filename = urllib.parse.quote(filename)
+        content_disposition = f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
+
         return FileResponse(
             path=file_path,
-            filename=filename,
             media_type=media_type,
             background=BackgroundTask(safe_cleanup_file, file_path),
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": content_disposition,
                 "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced, X-Apps-Script-Updated, X-Apps-Script-Skipped, X-Apps-Script-Error, X-Drive-Saved, X-Drive-File-Url, X-Drive-Error",
                 "X-Exported-Count": str(result["exported_count"]),
                 "X-Warnings-Count": str(result["warnings_count"]),
