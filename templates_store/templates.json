@@ -684,7 +684,9 @@
         "width_mm": 57.5,
         "height_mm": 29,
         "baseline_offset_mm": 0,
-        "scale": 100
+        "scale": 100,
+        "anchor_mode": "middle_center",
+        "blend_multiply": false
       }
     ],
     "base_pdf_filename": "base_d5e6b90515_SLII_certificate.pdf",
@@ -755,6 +757,6 @@
     },
     "id": "tpl_2600929e",
     "created_at": "2026-11-05 12:47:14",
-    "updated_at": "2026-11-05 12:47:14"
+    "updated_at": "2026-11-05 12:50:00"
   }
 ]
