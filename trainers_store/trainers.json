@@ -30,5 +30,23 @@
     "signature_height": 37.2,
     "created_at": "2026-10-29 09:36:56",
     "updated_at": "2026-10-29 09:36:56"
+  },
+  {
+    "id": "tr_ee7c229f",
+    "name": "Tamer",
+    "sheet_url": "",
+    "script_url": "",
+    "name_col": "Name",
+    "time_col": "Timestamp",
+    "scale": 100.0,
+    "signature_filename": "tr_ee7c229f_4a2617e240.pdf",
+    "signature_type": "pdf",
+    "is_vector": true,
+    "signature_url": "/api/trainers/signature/tr_ee7c229f_4a2617e240.pdf",
+    "thumbnail_url": "/api/trainers/signature/tr_ee7c229f_4a2617e240_thumb.png",
+    "signature_width": 144.0,
+    "signature_height": 23.4,
+    "created_at": "2026-11-05 12:42:47",
+    "updated_at": "2026-11-05 12:42:47"
   }
 ]
