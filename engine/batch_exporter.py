@@ -13,6 +13,8 @@ Handles:
 import io
 import re
 import os
+import json
+import base64
 import zipfile
 import logging
 from datetime import datetime
@@ -26,6 +28,26 @@ from engine import pdf_engine
 logger = logging.getLogger("certflow.batch_exporter")
 EXPORTS_DIR = Path(__file__).resolve().parent.parent / "exports"
 EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def extract_drive_folder_id(url_or_id: Optional[str]) -> Optional[str]:
+    """
+    Extracts a Google Drive folder ID from various Google Drive folder URLs or returns the raw ID.
+    Supports:
+      - https://drive.google.com/drive/folders/{ID}
+      - https://drive.google.com/drive/u/0/folders/{ID}
+      - https://drive.google.com/open?id={ID}
+      - Raw IDs like 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs
+    """
+    if not url_or_id or not str(url_or_id).strip():
+        return None
+    val = str(url_or_id).strip()
+    match = re.search(r"(?:/folders/|[?&]id=)([a-zA-Z0-9_-]+)", val)
+    if match:
+        return match.group(1)
+    if re.fullmatch(r"[a-zA-Z0-9_-]{15,}", val):
+        return val
+    return None
 
 
 def sanitize_filename(name: str) -> str:
@@ -142,6 +164,8 @@ def execute_batch_export(
     webhook_url: Optional[str] = None,
     apps_script_url: Optional[str] = None,
     sheet_url: Optional[str] = None,
+    drive_folder_url: Optional[str] = None,
+    drive_folder_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Executes high-speed batch export.
@@ -153,7 +177,14 @@ def execute_batch_export(
         "total_records": int,
         "exported_count": int,
         "warnings_count": int,
-        "report_summary": str
+        "report_summary": str,
+        "apps_script_synced": bool,
+        "apps_script_updated": int,
+        "apps_script_skipped": bool,
+        "apps_script_error": str,
+        "drive_saved": bool,
+        "drive_file_url": str,
+        "drive_error": str,
       }
     """
     total_records = len(records)
@@ -161,23 +192,36 @@ def execute_batch_export(
     if not selected_indices:
         raise ValueError("لم يتم تحديد أي سجلات صالحة للتصدير.")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    clean_prefix = sanitize_filename(filename_prefix or "CertFlow")
-    tpl_name = sanitize_filename(template_config.get("name", "Template"))
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+
+    # Extract training date from first selected record, fallback to YYYY-MM-DD
+    first_rec = records[selected_indices[0]] if selected_indices and len(records) > selected_indices[0] else {}
+    raw_training_date = (
+        first_rec.get("training_date")
+        or first_rec.get("Training_Date")
+        or first_rec.get("iso_date")
+        or now.strftime("%Y-%m-%d")
+    )
+    clean_date = sanitize_filename(str(raw_training_date).strip())
+    tpl_name = sanitize_filename(template_config.get("name", "Certificate"))
 
     processed_records = []
     warnings = []
 
-    out_path = EXPORTS_DIR / (
-        f"{clean_prefix}_{tpl_name}_{timestamp}.pdf"
-        if export_mode == "combined_pdf"
-        else f"{clean_prefix}_{tpl_name}_{timestamp}_{'PDFs' if export_mode == 'individual_pdfs_zip' else 'JPEGs'}.zip"
-    )
+    if export_mode == "combined_pdf":
+        out_filename = f"{tpl_name}_{clean_date}.pdf"
+    elif export_mode == "individual_pdfs_zip":
+        out_filename = f"{tpl_name}_{clean_date}_PDFs.zip"
+    elif export_mode == "individual_jpegs_zip":
+        out_filename = f"{tpl_name}_{clean_date}_JPEGs.zip"
+    else:
+        raise ValueError(f"صيغة التصدير غير مدعومة: {export_mode}")
+
+    out_path = EXPORTS_DIR / out_filename
 
     try:
         if export_mode == "combined_pdf":
-            out_filename = out_path.name
-
             master_doc = pymupdf.open()
 
             for seq, idx in enumerate(selected_indices, start=1):
@@ -210,8 +254,6 @@ def execute_batch_export(
             media_type = "application/pdf"
 
         elif export_mode == "individual_pdfs_zip":
-            out_filename = out_path.name
-
             with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
                 for seq, idx in enumerate(selected_indices, start=1):
                     rec = records[idx]
@@ -236,7 +278,7 @@ def execute_batch_export(
                     cert_doc.close()
 
                     safe_name = sanitize_filename(name)
-                    entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.pdf"
+                    entry_name = f"{tpl_name}_{clean_date}_{seq:03d}_{safe_name}.pdf"
                     zipf.writestr(entry_name, pdf_data)
                     processed_records.append(rec)
 
@@ -249,8 +291,6 @@ def execute_batch_export(
             media_type = "application/zip"
 
         elif export_mode == "individual_jpegs_zip":
-            out_filename = out_path.name
-
             with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
                 for seq, idx in enumerate(selected_indices, start=1):
                     rec = records[idx]
@@ -277,7 +317,7 @@ def execute_batch_export(
                     cert_doc.close()
 
                     safe_name = sanitize_filename(name)
-                    entry_name = f"{clean_prefix}_{seq:03d}_{safe_name}.jpg"
+                    entry_name = f"{tpl_name}_{clean_date}_{seq:03d}_{safe_name}.jpg"
                     zipf.writestr(entry_name, jpeg_data)
                     processed_records.append(rec)
 
@@ -306,18 +346,35 @@ def execute_batch_export(
         if t_name:
             updates.append({"trainee_name": t_name, "template_name": template_name})
 
+    # Resolve Google Drive folder ID (from parameters)
+    resolved_drive_id = drive_folder_id or extract_drive_folder_id(drive_folder_url)
+    should_save_to_drive = bool(resolved_drive_id and out_path.exists())
+
     apps_script_synced = False
     apps_script_updated = 0
     apps_script_error = None
     apps_script_skipped = False
+    drive_saved = False
+    drive_file_url = ""
+    drive_error = ""
 
     target_script_url = apps_script_url.strip() if (apps_script_url and apps_script_url.strip()) else None
     if not target_script_url and webhook_url and ("script.google.com" in webhook_url or "script.googleusercontent.com" in webhook_url):
         target_script_url = webhook_url.strip()
+    if not target_script_url:
+        try:
+            settings_path = Path(__file__).resolve().parent.parent / "templates_store" / "global_settings.json"
+            if settings_path.exists():
+                with open(settings_path, "r", encoding="utf-8") as sf:
+                    cfg = json.load(sf)
+                    if cfg.get("global_apps_script_url"):
+                        target_script_url = cfg["global_apps_script_url"].strip()
+        except Exception:
+            pass
 
-    # Google Apps Script Write-Back (doPost)
+    # Google Apps Script Write-Back & Drive Upload (doPost)
     if target_script_url:
-        if not updates:
+        if not updates and not should_save_to_drive:
             # FIX 5: Distinguish zero trainee names from Apps Script failure
             apps_script_skipped = True
             apps_script_error = "لم يتم العثور على أي أسماء متدربين لتحديثها في جدول قوقل شيت"
@@ -339,6 +396,18 @@ def execute_batch_export(
                     "timestamp": timestamp,
                 }
 
+                if should_save_to_drive:
+                    try:
+                        file_bytes = out_path.read_bytes()
+                        script_payload["save_to_drive"] = True
+                        script_payload["drive_folder_id"] = resolved_drive_id
+                        script_payload["filename"] = out_filename
+                        script_payload["mime_type"] = media_type
+                        script_payload["file_base64"] = base64.b64encode(file_bytes).decode("utf-8")
+                    except Exception as fe:
+                        drive_error = f"فشل تجهيز الملف للرفع إلى Google Drive: {fe}"
+                        logger.error(f"[Drive Upload Error] {drive_error}")
+
                 # Use generous 40s timeout and follow HTTP 302 redirects to Google's usercontent echo endpoint
                 timeout_cfg = httpx.Timeout(40.0, connect=15.0)
                 headers = {
@@ -357,9 +426,13 @@ def execute_batch_export(
                 if post_res.status_code == 200 and (resp_text.lower().startswith("<!doctype html") or "<html" in resp_text.lower()[:100]):
                     apps_script_error = "تطبيق Google Apps Script يتطلب تسجيل الدخول. يرجى إعادة النشر كـ Web App مع ضبط: 'Who has access: Anyone'."
                     logger.error(f"[Apps Script Sync Error] {apps_script_error}")
+                    if should_save_to_drive and not drive_error:
+                        drive_error = apps_script_error
                 elif post_res.status_code not in (200, 201, 302):
                     apps_script_error = f"أرجع Google Apps Script رمز استجابة غير متوقع ({post_res.status_code}): {resp_text[:150]}"
                     logger.error(f"[Apps Script Sync Error] {apps_script_error}")
+                    if should_save_to_drive and not drive_error:
+                        drive_error = apps_script_error
                 else:
                     # Parse structured JSON output from doPost
                     try:
@@ -372,6 +445,14 @@ def execute_batch_export(
                                 apps_script_updated = int(res_data.get("updated", res_data.get("updated_count", len(updates))))
                                 apps_script_synced = True
                                 logger.info(f"[Apps Script Sync Success] Updated {apps_script_updated}/{len(updates)} records in Google Sheet")
+
+                            if should_save_to_drive:
+                                drive_saved = bool(res_data.get("drive_saved", False))
+                                drive_file_url = str(res_data.get("drive_file_url") or "")
+                                if res_data.get("drive_error"):
+                                    drive_error = str(res_data.get("drive_error"))
+                                elif not drive_saved and res_data.get("status") == "error":
+                                    drive_error = apps_script_error
                         else:
                             apps_script_synced = True
                             apps_script_updated = len(updates)
@@ -383,13 +464,19 @@ def execute_batch_export(
                         else:
                             apps_script_error = f"تعذر قراءة رد تطبيق Google Apps Script: {resp_text[:120]}"
                             logger.warning(f"[Apps Script Sync Warning] {apps_script_error}")
+                            if should_save_to_drive and not drive_error:
+                                drive_error = apps_script_error
 
             except httpx.TimeoutException:
                 apps_script_error = "انتهت مهلة استجابة Google Apps Script (تجاوز 40 ثانية أثناء الكتابة)"
                 logger.error(f"[Apps Script Sync Timeout] {apps_script_error}")
+                if should_save_to_drive and not drive_error:
+                    drive_error = apps_script_error
             except Exception as e:
                 apps_script_error = f"فشل الاتصال بـ Google Apps Script: {str(e)}"
                 logger.error(f"[Apps Script Sync Exception] {apps_script_error}")
+                if should_save_to_drive and not drive_error:
+                    drive_error = apps_script_error
 
     # General Webhook Notification if provided and different from script_url
     if webhook_url and webhook_url.strip() and webhook_url.strip() != target_script_url:
@@ -425,5 +512,8 @@ def execute_batch_export(
         "apps_script_updated": apps_script_updated,
         "apps_script_skipped": apps_script_skipped,
         "apps_script_error": apps_script_error or "",
+        "drive_saved": drive_saved,
+        "drive_file_url": drive_file_url,
+        "drive_error": drive_error or "",
     }
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -42,7 +42,7 @@
   <aside id="app-sidebar" class="w-56 shrink-0 h-full bg-brand-primary text-white flex flex-col justify-between border-e border-blue-900/40 shadow-xl z-40 select-none">
     
     <!-- Top Section: Brand & Navigation Items -->
-    <div class="flex flex-col">
+    <div class="flex flex-col flex-1 min-h-0 overflow-y-auto">
       <!-- App Brand Title (No company name) -->
       <div class="p-4 border-b border-white/10 flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 shadow-inner shrink-0">
@@ -89,11 +89,41 @@
           <span id="sidebar-trainer-count" class="bg-brand-secondary/30 text-brand-secondary text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
         </button>
 
-        <!-- 4. Excel Template Download (1-click direct link) -->
+        <!-- 5. Excel Template Download (1-click direct link) -->
         <a href="/api/excel-template" download="CertFlow_Standard_Template.xlsx" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center gap-3 text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="تحميل قالب الإكسل المعتمد" data-i18n-title="tip_download_excel">
           <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-success shrink-0"></i>
           <span class="truncate" data-i18n="nav_excel_template">قالب الإكسل</span>
         </a>
+
+        <!-- 6. Google Drive Folder Modal Trigger -->
+        <button id="sidebar-drive-btn" onclick="openDriveSettingsModal()" class="w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex items-center justify-between text-blue-100 hover:text-white hover:bg-white/10 whitespace-nowrap" title="إعدادات مجلد Google Drive والرفع التلقائي" data-i18n-title="tip_google_drive">
+          <div class="flex items-center gap-3 min-w-0">
+            <i data-lucide="hard-drive" class="w-4 h-4 text-brand-warning shrink-0"></i>
+            <span class="truncate" data-i18n="nav_google_drive">مجلد قوقل درايف</span>
+          </div>
+          <span id="sidebar-drive-indicator" class="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0 shadow-xs" title="غير مضبوط" data-i18n-title="tip_drive_unconfigured"></span>
+        </button>
+
+        <!-- Divider -->
+        <div class="my-2 border-t border-white/10"></div>
+
+        <!-- 7. Pending Certificates Section -->
+        <div class="pt-1 flex flex-col min-h-0">
+          <div class="flex items-center justify-between px-1 mb-1.5">
+            <span class="text-[11px] font-bold text-blue-200 tracking-wide uppercase flex items-center gap-1.5" data-i18n="pending_certificates_title">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-brand-warning"></i>
+              <span>شهادات بانتظار الإصدار</span>
+            </span>
+            <button onclick="refreshPendingTrainersSummary()" class="p-1 rounded-md text-blue-200/80 hover:text-white hover:bg-white/10 transition" title="تحديث" data-i18n-title="tip_refresh_pending">
+              <i data-lucide="refresh-cw" class="w-3 h-3" id="pending-refresh-spinner"></i>
+            </button>
+          </div>
+
+          <!-- Pending Trainers Scrollable List -->
+          <div id="sidebar-pending-trainers-list" class="max-h-56 overflow-y-auto space-y-1 pr-1 text-xs">
+            <div class="text-[11px] text-blue-200/60 py-2 text-center" data-i18n="loading_text">جاري التحميل...</div>
+          </div>
+        </div>
       </nav>
     </div>
 
@@ -1188,6 +1218,76 @@
       <div class="flex items-center justify-end gap-2 mt-6">
         <button type="button" onclick="closeDesignerPinModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition" data-i18n="btn_cancel">إلغاء</button>
         <button type="button" onclick="verifyDesignerPin()" class="px-5 py-2 rounded-xl bg-brand-primary hover:bg-[#003866] text-white text-xs font-bold transition shadow-sm" data-i18n="btn_unlock_designer">دخول الاستوديو</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- MODAL 5: Google Drive Settings Modal                       -->
+  <!-- ========================================================== -->
+  <div id="drive-settings-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="fixed inset-0 modal-backdrop" onclick="closeDriveSettingsModal()"></div>
+    <div class="relative bg-white rounded-3xl max-w-lg w-full flex flex-col shadow-2xl border border-slate-200 z-10 modal-enter overflow-hidden">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-brand-primary text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+            <i data-lucide="hard-drive" class="w-5 h-5 text-brand-warning"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white leading-tight" data-i18n="modal_drive_title">إعدادات مجلد Google Drive</h3>
+            <p class="text-xs text-blue-200/80" data-i18n="modal_drive_desc">ضبط مجلد الحفظ السحابي والنسخ الاحتياطي التلقائي عند التصدير</p>
+          </div>
+        </div>
+        <button onclick="closeDriveSettingsModal()" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 space-y-4">
+        <!-- Drive Folder URL / ID -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1" data-i18n="label_drive_folder">
+            رابط أو معرف مجلد Google Drive
+          </label>
+          <input type="text" id="drive-folder-input" placeholder="https://drive.google.com/drive/folders/... or Folder ID" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-hidden transition">
+          <p class="text-[11px] text-slate-500 mt-1" data-i18n="hint_drive_folder">
+            ضع رابط المجلد الكامل أو الـ Folder ID. سيتم رفع ملفات الـ PDF والـ ZIP المصدرة تلقائياً إليه.
+          </p>
+        </div>
+
+        <!-- Google Apps Script URL (Global) -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1" data-i18n="label_drive_script">
+            رابط تطبيق Google Apps Script العام
+          </label>
+          <input type="text" id="drive-script-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-hidden transition">
+          <p class="text-[11px] text-slate-500 mt-1" data-i18n="hint_drive_script">
+            رابط الـ Web App المنشور بصلاحية Anyone، المسؤول عن التحديث في الشيت والرفع لدرايف.
+          </p>
+        </div>
+
+        <!-- Status notice -->
+        <div id="drive-status-notice" class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span id="drive-modal-status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0"></span>
+            <span id="drive-modal-status-text" class="font-medium" data-i18n="status_not_configured">غير مضبوط</span>
+          </div>
+          <a id="drive-modal-open-link" href="#" target="_blank" class="hidden text-brand-primary hover:underline font-bold flex items-center gap-1 text-[11px]">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            <span data-i18n="btn_open_drive">فتح المجلد</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+        <button type="button" onclick="closeDriveSettingsModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition" data-i18n="btn_cancel">إلغاء</button>
+        <button type="button" onclick="saveDriveSettings()" class="px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-[#003866] text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span data-i18n="btn_save_settings">حفظ الإعدادات</span>
+        </button>
       </div>
     </div>
   </div>

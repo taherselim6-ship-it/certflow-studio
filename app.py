@@ -1,5 +1,8 @@
 import io
 import os
+import json
+import base64
+import asyncio
 import logging
 import urllib.parse
 from pathlib import Path
@@ -201,6 +204,61 @@ async def download_font(filename: str):
 async def list_trainers():
     trainers = trainer_manager.list_trainers()
     return {"trainers": trainers, "count": len(trainers)}
+
+
+@app.get("/api/trainers/pending-summary")
+async def get_trainers_pending_summary():
+    """
+    Scans registered trainers with a linked Google Sheet concurrently,
+    counts unissued trainees, and returns trainers needing certificate export.
+    """
+    trainers = trainer_manager.list_trainers()
+
+    async def _check_trainer(tr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        sheet_url = (tr.get("sheet_url") or "").strip()
+        if not sheet_url or "script.google.com" in sheet_url:
+            return None
+        try:
+            res = await asyncio.wait_for(
+                data_loader.fetch_google_sheet_records(
+                    sheet_url=sheet_url,
+                    trainer_name=tr.get("name", ""),
+                ),
+                timeout=12.0
+            )
+            records = res.get("unfiltered_records", [])
+            unissued = sum(1 for r in records if not r.get("is_issued"))
+            if unissued < 1:
+                return None
+            first_date = ""
+            for d in res.get("unique_dates", []):
+                if d.get("unissued_count", 0) > 0:
+                    first_date = d.get("date_str", "")
+                    break
+            if not first_date:
+                for r in records:
+                    if not r.get("is_issued"):
+                        first_date = r.get("date_only") or r.get("iso_date") or r.get("raw_date") or r.get("training_date") or ""
+                        break
+            return {
+                "trainer_id": tr["id"],
+                "trainer_name": tr.get("name", "مدرب"),
+                "unissued_count": unissued,
+                "first_pending_date": first_date,
+                "sheet_url": sheet_url,
+            }
+        except Exception as e:
+            logger.warning(f"Pending summary check failed for trainer {tr.get('id')}: {e}")
+            return None
+
+    tasks = [_check_trainer(t) for t in trainers if t.get("sheet_url")]
+    if not tasks:
+        return {"pending_trainers": []}
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    pending = [r for r in results if isinstance(r, dict) and r is not None]
+    pending.sort(key=lambda x: x.get("unissued_count", 0), reverse=True)
+    return {"pending_trainers": pending}
 
 
 @app.get("/api/trainers/{trainer_id}")
@@ -702,6 +760,67 @@ async def download_excel_template():
 
 
 # ==========================================
+# Global Settings & Pending Summary Endpoints
+# ==========================================
+
+SETTINGS_FILE = BASE_DIR / "templates_store" / "global_settings.json"
+
+
+def load_global_settings() -> Dict[str, Any]:
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read global_settings.json: {e}")
+    return {
+        "drive_folder_url": "",
+        "drive_folder_id": "",
+        "global_apps_script_url": "",
+    }
+
+
+def save_global_settings(settings: Dict[str, Any]) -> None:
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+    if github_sync.is_configured():
+        github_sync.sync_file_push(SETTINGS_FILE, commit_message="Update global settings (Google Drive & Apps Script)")
+
+
+class GlobalSettingsRequest(BaseModel):
+    drive_folder_url: Optional[str] = ""
+    drive_folder_id: Optional[str] = ""
+    global_apps_script_url: Optional[str] = ""
+
+
+@app.get("/api/settings")
+async def get_settings_endpoint():
+    """Returns stored global settings for Google Drive and Apps Script."""
+    return load_global_settings()
+
+
+@app.post("/api/settings")
+async def update_settings_endpoint(req: GlobalSettingsRequest):
+    """Updates stored global settings and syncs with GitHub if configured."""
+    check_storage_write_allowed()
+    current = load_global_settings()
+    folder_url = (req.drive_folder_url or "").strip()
+    folder_id = (req.drive_folder_id or "").strip()
+    if folder_url and not folder_id:
+        folder_id = batch_exporter.extract_drive_folder_id(folder_url) or ""
+    elif folder_id and not folder_url:
+        folder_url = f"https://drive.google.com/drive/folders/{folder_id}"
+
+    current["drive_folder_url"] = folder_url
+    current["drive_folder_id"] = folder_id
+    current["global_apps_script_url"] = (req.global_apps_script_url or "").strip()
+
+    save_global_settings(current)
+    return {"status": "success", "settings": current}
+
+
+# ==========================================
 # Batch Export & Apps Script Sync Endpoints
 # ==========================================
 
@@ -717,6 +836,8 @@ class BatchExportRequest(BaseModel):
     apps_script_url: Optional[str] = None
     trainer_id: Optional[str] = None
     sheet_url: Optional[str] = None
+    drive_folder_url: Optional[str] = None
+    drive_folder_id: Optional[str] = None
 
 
 class AppsScriptSyncRequest(BaseModel):
@@ -827,6 +948,14 @@ async def export_batch_endpoint(req: BatchExportRequest):
                     elif t.get("sheet_url") and ("script.google.com" in t["sheet_url"] or "script.googleusercontent.com" in t["sheet_url"]):
                         target_apps_script = t["sheet_url"]
 
+        # Check global settings
+        global_settings = load_global_settings()
+        if not target_apps_script and global_settings.get("global_apps_script_url"):
+            target_apps_script = global_settings["global_apps_script_url"].strip()
+
+        drive_folder_url = req.drive_folder_url or global_settings.get("drive_folder_url")
+        drive_folder_id = req.drive_folder_id or global_settings.get("drive_folder_id")
+
         result = batch_exporter.execute_batch_export(
             template_config=config,
             records=req.records,
@@ -837,6 +966,8 @@ async def export_batch_endpoint(req: BatchExportRequest):
             webhook_url=req.webhook_url,
             apps_script_url=target_apps_script,
             sheet_url=target_sheet_url,
+            drive_folder_url=drive_folder_url,
+            drive_folder_id=drive_folder_id,
         )
 
         file_path = result["file_path"]
@@ -846,6 +977,9 @@ async def export_batch_endpoint(req: BatchExportRequest):
         apps_script_updated = str(result.get("apps_script_updated", 0))
         apps_script_skipped = "true" if result.get("apps_script_skipped") else "false"
         apps_script_error = urllib.parse.quote(result.get("apps_script_error") or "")
+        drive_saved = "true" if result.get("drive_saved") else "false"
+        drive_file_url = urllib.parse.quote(result.get("drive_file_url") or "")
+        drive_error = urllib.parse.quote(result.get("drive_error") or "")
 
         return FileResponse(
             path=file_path,
@@ -854,13 +988,16 @@ async def export_batch_endpoint(req: BatchExportRequest):
             background=BackgroundTask(safe_cleanup_file, file_path),
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
-                "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced, X-Apps-Script-Updated, X-Apps-Script-Skipped, X-Apps-Script-Error",
+                "Access-Control-Expose-Headers": "Content-Disposition, X-Exported-Count, X-Warnings-Count, X-Apps-Script-Synced, X-Apps-Script-Updated, X-Apps-Script-Skipped, X-Apps-Script-Error, X-Drive-Saved, X-Drive-File-Url, X-Drive-Error",
                 "X-Exported-Count": str(result["exported_count"]),
                 "X-Warnings-Count": str(result["warnings_count"]),
                 "X-Apps-Script-Synced": apps_script_synced,
                 "X-Apps-Script-Updated": apps_script_updated,
                 "X-Apps-Script-Skipped": apps_script_skipped,
                 "X-Apps-Script-Error": apps_script_error,
+                "X-Drive-Saved": drive_saved,
+                "X-Drive-File-Url": drive_file_url,
+                "X-Drive-Error": drive_error,
             }
         )
     except HTTPException:

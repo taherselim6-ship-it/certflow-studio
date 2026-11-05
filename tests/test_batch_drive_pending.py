@@ -1,0 +1,219 @@
+import io
+import json
+import base64
+import unittest
+from unittest.mock import patch, MagicMock
+from pathlib import Path
+from fastapi.testclient import TestClient
+
+from app import app
+from engine import batch_exporter, template_manager, trainer_manager
+
+client = TestClient(app)
+
+
+class TestBatchDrivePending(unittest.TestCase):
+    def setUp(self):
+        self.sample_template = {
+            "id": "tpl_test_drive",
+            "name": "DevOps Leadership Course",
+            "dimensions": {"width_mm": 297, "height_mm": 210},
+            "page_setup": {"width_mm": 297, "height_mm": 210, "bleed_mm": 3},
+            "elements": {}
+        }
+        self.sample_records = [
+            {"Trainee_Name": "Omar Farooq", "training_date": "2026-11-15", "trainer_id": "tr_1"},
+            {"Trainee_Name": "Sara Salem", "training_date": "2026-11-15", "trainer_id": "tr_1"}
+        ]
+
+    def tearDown(self):
+        settings_path = Path(__file__).resolve().parent.parent / "templates_store" / "global_settings.json"
+        if settings_path.exists():
+            try:
+                settings_path.unlink()
+            except Exception:
+                pass
+
+    def test_extract_drive_folder_id(self):
+        # Full URL with /folders/
+        url1 = "https://drive.google.com/drive/folders/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
+        self.assertEqual(batch_exporter.extract_drive_folder_id(url1), "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs")
+
+        # Full URL with u/1/folders/ and query params
+        url2 = "https://drive.google.com/drive/u/1/folders/1a2b3c4d5e6f7g8h9i0j-k_l?usp=sharing"
+        self.assertEqual(batch_exporter.extract_drive_folder_id(url2), "1a2b3c4d5e6f7g8h9i0j-k_l")
+
+        # Open URL with ?id=
+        url3 = "https://drive.google.com/open?id=1xyz9876543210_abcdef"
+        self.assertEqual(batch_exporter.extract_drive_folder_id(url3), "1xyz9876543210_abcdef")
+
+        # Raw folder ID
+        raw_id = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
+        self.assertEqual(batch_exporter.extract_drive_folder_id(raw_id), raw_id)
+
+        # None or empty
+        self.assertIsNone(batch_exporter.extract_drive_folder_id(""))
+        self.assertIsNone(batch_exporter.extract_drive_folder_id(None))
+
+    def test_batch_export_filename_format(self):
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            result = batch_exporter.execute_batch_export(
+                template_config=self.sample_template,
+                records=self.sample_records,
+                export_mode="combined_pdf",
+                range_str="ALL",
+            )
+            # Expected filename: DevOps_Leadership_Course_2026-11-15.pdf (NO CertFlow prefix, NO timestamp)
+            self.assertEqual(result["filename"], "DevOps_Leadership_Course_2026-11-15.pdf")
+
+            # Clean up
+            p = Path(result["file_path"])
+            if p.exists():
+                p.unlink()
+
+            # Test individual PDFs ZIP
+            zip_result = batch_exporter.execute_batch_export(
+                template_config=self.sample_template,
+                records=self.sample_records,
+                export_mode="individual_pdfs_zip",
+                range_str="ALL",
+            )
+            self.assertEqual(zip_result["filename"], "DevOps_Leadership_Course_2026-11-15_PDFs.zip")
+            zip_p = Path(zip_result["file_path"])
+            if zip_p.exists():
+                import zipfile
+                with zipfile.ZipFile(zip_p) as zf:
+                    namelist = zf.namelist()
+                    # Check entry format: {tpl_name}_{clean_date}_{seq:03d}_{safe_name}.pdf
+                    self.assertIn("DevOps_Leadership_Course_2026-11-15_001_Omar_Farooq.pdf", namelist)
+                    self.assertIn("DevOps_Leadership_Course_2026-11-15_002_Sara_Salem.pdf", namelist)
+                zip_p.unlink()
+
+    def test_global_settings_endpoints(self):
+        # 1. GET settings
+        get_res = client.get("/api/settings")
+        self.assertEqual(get_res.status_code, 200)
+        data = get_res.json()
+        self.assertIn("drive_folder_url", data)
+        self.assertIn("drive_folder_id", data)
+        self.assertIn("global_apps_script_url", data)
+
+        # 2. POST settings with Drive URL -> automatically extracts folder ID
+        post_res = client.post("/api/settings", json={
+            "drive_folder_url": "https://drive.google.com/drive/folders/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs",
+            "global_apps_script_url": "https://script.google.com/macros/s/AKfycbxTest/exec"
+        })
+        self.assertEqual(post_res.status_code, 200)
+        saved = post_res.json()["settings"]
+        self.assertEqual(saved["drive_folder_id"], "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs")
+        self.assertEqual(saved["global_apps_script_url"], "https://script.google.com/macros/s/AKfycbxTest/exec")
+
+    @patch("httpx.Client.post")
+    def test_batch_export_drive_upload(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = json.dumps({
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/12345/view"
+        })
+        mock_resp.json.return_value = {
+            "status": "success",
+            "updated": 2,
+            "drive_saved": True,
+            "drive_file_url": "https://drive.google.com/file/d/12345/view"
+        }
+        mock_post.return_value = mock_resp
+
+        import pymupdf
+        def mock_builder(*args, **kwargs):
+            d = pymupdf.open()
+            d.new_page(width=100, height=100)
+            d._render_metrics = {}
+            return d
+
+        with patch("engine.pdf_engine.build_certificate_pdf", side_effect=mock_builder):
+            result = batch_exporter.execute_batch_export(
+                template_config=self.sample_template,
+                records=self.sample_records,
+                export_mode="combined_pdf",
+                range_str="ALL",
+                apps_script_url="https://script.google.com/macros/s/AKfycbxTest/exec",
+                drive_folder_id="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
+            )
+
+            self.assertTrue(result["drive_saved"])
+            self.assertEqual(result["drive_file_url"], "https://drive.google.com/file/d/12345/view")
+            self.assertEqual(result["drive_error"], "")
+
+            # Verify doPost payload sent to Apps Script
+            call_args, call_kwargs = mock_post.call_args
+            payload = call_kwargs["json"]
+            self.assertTrue(payload.get("save_to_drive"))
+            self.assertEqual(payload.get("drive_folder_id"), "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs")
+            self.assertEqual(payload.get("filename"), "DevOps_Leadership_Course_2026-11-15.pdf")
+            self.assertEqual(payload.get("mime_type"), "application/pdf")
+            self.assertIn("file_base64", payload)
+            self.assertTrue(len(payload["file_base64"]) > 0)
+
+            # Cleanup
+            p = Path(result["file_path"])
+            if p.exists():
+                p.unlink()
+
+    @patch("engine.data_loader.fetch_google_sheet_records")
+    def test_trainers_pending_summary(self, mock_fetch):
+        # Mock trainers: trainer 1 has 3 unissued records; trainer 2 has 0 unissued
+        mock_trainers = [
+            {"id": "tr_pending", "name": "Prof. Ahmed", "sheet_url": "https://docs.google.com/spreadsheets/d/abc/edit"},
+            {"id": "tr_completed", "name": "Dr. Sarah", "sheet_url": "https://docs.google.com/spreadsheets/d/xyz/edit"},
+            {"id": "tr_no_sheet", "name": "Eng. Khaled", "sheet_url": ""}
+        ]
+
+        async def fake_fetch(sheet_url, **kwargs):
+            if "abc" in sheet_url:
+                return {
+                    "unfiltered_records": [
+                        {"is_issued": False, "date_only": "2026-11-10"},
+                        {"is_issued": False, "date_only": "2026-11-10"},
+                        {"is_issued": True, "date_only": "2026-11-01"},
+                    ],
+                    "unique_dates": [
+                        {"date_str": "2026-11-10", "unissued_count": 2, "total_count": 2},
+                        {"date_str": "2026-11-01", "unissued_count": 0, "total_count": 1}
+                    ]
+                }
+            else:
+                return {
+                    "unfiltered_records": [
+                        {"is_issued": True, "date_only": "2026-10-20"}
+                    ],
+                    "unique_dates": [
+                        {"date_str": "2026-10-20", "unissued_count": 0, "total_count": 1}
+                    ]
+                }
+
+        mock_fetch.side_effect = fake_fetch
+
+        with patch("engine.trainer_manager.list_trainers", return_value=mock_trainers):
+            res = client.get("/api/trainers/pending-summary")
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertIn("pending_trainers", data)
+            trainers = data["pending_trainers"]
+            self.assertEqual(len(trainers), 1)
+            self.assertEqual(trainers[0]["trainer_id"], "tr_pending")
+            self.assertEqual(trainers[0]["unissued_count"], 2)
+            self.assertEqual(trainers[0]["first_pending_date"], "2026-11-10")
+
+
+if __name__ == "__main__":
+    unittest.main()

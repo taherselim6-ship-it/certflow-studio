@@ -6,7 +6,9 @@
 // ==========================================================
 // Global State - Scaffolding, Core, Operator & Designer
 // ==========================================================
-let currentLang = new URLSearchParams(window.location.search).get("lang") || localStorage.getItem("certflow_lang") || "ar";
+let currentLang = new URLSearchParams(window.location.search).get("lang") || localStorage.getItem("certflow_lang") || "en";
+let currentGlobalSettings = { drive_folder_url: "", drive_folder_id: "", global_apps_script_url: "" };
+let activePendingTrainers = [];
 let currentMode = "operator"; // Default landing view: Operator Platform
 let activeTrainers = [];
 let activeFonts = [];
@@ -421,7 +423,28 @@ const translations = {
     toast_inspecting_excel: "جاري فحص وتجهيز ملف الإكسل...",
     toast_reset_complete: "تمت إعادة ضبط البيانات والخيارات للحالة الأولية",
     confirm_delete_field: "هل أنت متأكد من حذف هذا الحقل؟",
-    confirm_delete_template: "هل أنت متأكد من حذف هذا القالب نهائياً؟"
+    confirm_delete_template: "هل أنت متأكد من حذف هذا القالب نهائياً؟",
+    modal_drive_title: "إعدادات مجلد Google Drive",
+    modal_drive_desc: "ضبط مجلد الحفظ السحابي والنسخ الاحتياطي التلقائي عند التصدير",
+    label_drive_folder: "رابط أو معرف مجلد Google Drive",
+    hint_drive_folder: "ضع رابط المجلد الكامل أو الـ Folder ID. سيتم رفع ملفات الـ PDF والـ ZIP المصدرة تلقائياً إليه.",
+    label_drive_script: "رابط تطبيق Google Apps Script العام",
+    hint_drive_script: "رابط الـ Web App المنشور بصلاحية Anyone، المسؤول عن التحديث في الشيت والرفع لدرايف.",
+    nav_google_drive: "مجلد قوقل درايف",
+    tip_google_drive: "إعدادات مجلد Google Drive والرفع التلقائي",
+    tip_drive_configured: "مجلد درايف مضبوط ومتصل",
+    tip_drive_unconfigured: "مجلد درايف غير مضبوط",
+    pending_certificates_title: "شهادات بانتظار الإصدار",
+    tip_refresh_pending: "تحديث قائمة الشهادات المعلقة",
+    all_certificates_issued: "✓ جميع الشهادات مصدرة",
+    pending_badge_count: "معلق",
+    status_configured: "مضبوط وجاهز",
+    status_not_configured: "غير مضبوط",
+    btn_open_drive: "فتح المجلد",
+    btn_save_settings: "حفظ الإعدادات",
+    toast_settings_saved: "تم حفظ إعدادات Google Drive بنجاح",
+    toast_settings_failed: "فشل حفظ إعدادات Google Drive",
+    loading_text: "جاري التحميل..."
   },
   en: {
     app_title: "CertFlow Studio",
@@ -787,7 +810,28 @@ const translations = {
     toast_inspecting_excel: "Inspecting and processing Excel file...",
     toast_reset_complete: "Data and settings reset to initial state",
     confirm_delete_field: "Are you sure you want to delete this field?",
-    confirm_delete_template: "Are you sure you want to permanently delete this template?"
+    confirm_delete_template: "Are you sure you want to permanently delete this template?",
+    modal_drive_title: "Google Drive Settings",
+    modal_drive_desc: "Configure target cloud folder & automatic backup on batch export",
+    label_drive_folder: "Google Drive Folder URL / Folder ID",
+    hint_drive_folder: "Paste full Google Drive folder link or Folder ID. Exported PDFs and ZIPs will be uploaded here.",
+    label_drive_script: "Global Google Apps Script Web App URL",
+    hint_drive_script: "Web App URL deployed as 'Anyone', responsible for Sheets updates and Drive file uploads.",
+    nav_google_drive: "Google Drive Folder",
+    tip_google_drive: "Google Drive folder settings & auto-upload",
+    tip_drive_configured: "Drive folder configured",
+    tip_drive_unconfigured: "Drive folder not configured",
+    pending_certificates_title: "Pending Certificates",
+    tip_refresh_pending: "Refresh pending certificates summary",
+    all_certificates_issued: "✓ All certificates issued",
+    pending_badge_count: "pending",
+    status_configured: "Configured & Active",
+    status_not_configured: "Not configured",
+    btn_open_drive: "Open Folder",
+    btn_save_settings: "Save Settings",
+    toast_settings_saved: "Google Drive settings saved successfully",
+    toast_settings_failed: "Failed to save Google Drive settings",
+    loading_text: "Loading..."
   }
 };
 
@@ -802,6 +846,8 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStatus();
   fetchFonts();
   fetchTrainers();
+  fetchDriveSettings();
+  fetchPendingTrainersSummary();
   initOperatorPlatform();
   lucide.createIcons();
 });
@@ -859,6 +905,8 @@ function applyLanguage(lang) {
     if (typeof updateRecordControls === "function") updateRecordControls();
     if (typeof updateOperatorTemplateInfo === "function") updateOperatorTemplateInfo();
     if (typeof updateTrainerBottomInfo === "function") updateTrainerBottomInfo();
+    if (typeof updateDriveUIState === "function") updateDriveUIState();
+    if (typeof renderPendingTrainersList === "function") renderPendingTrainersList(activePendingTrainers);
     if (typeof renderTrainersList === "function") renderTrainersList(activeTrainers);
     if (typeof renderTrainersQuickGrid === "function") renderTrainersQuickGrid(activeTrainers);
     if (currentMode === "designer") {
@@ -2467,6 +2515,10 @@ async function exportBatchSubmit() {
     appsScriptUrl = getGlobalAppsScriptUrl();
   }
 
+  if (!appsScriptUrl && currentGlobalSettings.global_apps_script_url) {
+    appsScriptUrl = currentGlobalSettings.global_apps_script_url.trim();
+  }
+
   if (appsScriptUrl) {
     setGlobalAppsScriptUrl(appsScriptUrl);
   }
@@ -2485,6 +2537,8 @@ async function exportBatchSubmit() {
     apps_script_url: appsScriptUrl,
     trainer_id: operatorActiveTrainerId || "",
     sheet_url: sheetUrl,
+    drive_folder_url: currentGlobalSettings.drive_folder_url || "",
+    drive_folder_id: currentGlobalSettings.drive_folder_id || "",
   };
 
   try {
@@ -2521,6 +2575,22 @@ async function exportBatchSubmit() {
     }
     const appsScriptUpdated = parseInt(response.headers.get("X-Apps-Script-Updated") || "0", 10);
 
+    const isDriveSaved = response.headers.get("X-Drive-Saved") === "true";
+    let driveFileUrl = "";
+    try {
+      const rawUrl = response.headers.get("X-Drive-File-Url") || "";
+      driveFileUrl = rawUrl ? decodeURIComponent(rawUrl) : "";
+    } catch (_) {
+      driveFileUrl = response.headers.get("X-Drive-File-Url") || "";
+    }
+    let driveError = "";
+    try {
+      const rawDriveErr = response.headers.get("X-Drive-Error") || "";
+      driveError = rawDriveErr ? decodeURIComponent(rawDriveErr) : "";
+    } catch (_) {
+      driveError = response.headers.get("X-Drive-Error") || "";
+    }
+
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2546,6 +2616,29 @@ async function exportBatchSubmit() {
 
     // Re-apply sheet filters to update counter and hide issued records
     applySheetFilters();
+
+    // Refresh pending certificates summary in sidebar
+    if (typeof refreshPendingTrainersSummary === "function") {
+      refreshPendingTrainersSummary();
+    }
+
+    // Google Drive Upload Feedback
+    if (isDriveSaved) {
+      setTimeout(() => {
+        const msg = currentLang === "ar"
+          ? "تم رفع الملف تلقائياً إلى Google Drive بنجاح"
+          : "File automatically uploaded to Google Drive successfully";
+        const linkHtml = driveFileUrl
+          ? ` (<a href="${driveFileUrl}" target="_blank" class="underline font-bold">${currentLang === "ar" ? "فتح في درايف" : "Open in Drive"}</a>)`
+          : "";
+        showToast(`${msg}${linkHtml}`, "success");
+      }, 1500);
+    } else if (driveError) {
+      setTimeout(() => {
+        const prefix = currentLang === "ar" ? "تنبيه: تعذر الرفع إلى Google Drive: " : "Warning: Failed to upload to Google Drive: ";
+        showToast(`${prefix}${driveError}`, "warning");
+      }, 1600);
+    }
 
     // Truthful Apps Script Sync Feedback (no false positives, FIX 5)
     if (appsScriptUrl) {
@@ -4992,6 +5085,220 @@ async function deleteTemplateFromModal(tplId) {
   }
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// ==========================================================
+// Google Drive Settings & Auto-Upload Engine
+// ==========================================================
+async function fetchDriveSettings() {
+  try {
+    const res = await fetch("/api/settings");
+    if (!res.ok) return;
+    const data = await res.json();
+    currentGlobalSettings = data || {};
+    updateDriveUIState();
+  } catch (err) {
+    console.error("fetchDriveSettings error:", err);
+  }
+}
+
+function updateDriveUIState() {
+  const isConfigured = Boolean(currentGlobalSettings.drive_folder_id || currentGlobalSettings.drive_folder_url);
+  const ind = document.getElementById("sidebar-drive-indicator");
+  if (ind) {
+    if (isConfigured) {
+      ind.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 shadow-xs ring-2 ring-emerald-400/30";
+      ind.title = t("tip_drive_configured");
+    } else {
+      ind.className = "w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0 shadow-xs";
+      ind.title = t("tip_drive_unconfigured");
+    }
+  }
+
+  const dot = document.getElementById("drive-modal-status-dot");
+  const txt = document.getElementById("drive-modal-status-text");
+  const openLink = document.getElementById("drive-modal-open-link");
+  if (dot) {
+    dot.className = isConfigured ? "w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" : "w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0";
+  }
+  if (txt) {
+    txt.textContent = isConfigured ? t("status_configured") : t("status_not_configured");
+    txt.className = isConfigured ? "font-bold text-emerald-700" : "font-medium text-slate-500";
+  }
+  if (openLink) {
+    const targetUrl = currentGlobalSettings.drive_folder_url || (currentGlobalSettings.drive_folder_id ? `https://drive.google.com/drive/folders/${currentGlobalSettings.drive_folder_id}` : "");
+    if (isConfigured && targetUrl) {
+      openLink.href = targetUrl;
+      openLink.classList.remove("hidden");
+    } else {
+      openLink.classList.add("hidden");
+    }
+  }
+}
+
+async function openDriveSettingsModal() {
+  const modal = document.getElementById("drive-settings-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  await fetchDriveSettings();
+  const folderInput = document.getElementById("drive-folder-input");
+  const scriptInput = document.getElementById("drive-script-input");
+  if (folderInput) {
+    folderInput.value = currentGlobalSettings.drive_folder_url || currentGlobalSettings.drive_folder_id || "";
+  }
+  if (scriptInput) {
+    scriptInput.value = currentGlobalSettings.global_apps_script_url || getGlobalAppsScriptUrl() || "";
+  }
+  lucide.createIcons();
+}
+
+function closeDriveSettingsModal() {
+  const modal = document.getElementById("drive-settings-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function saveDriveSettings() {
+  const folderInput = document.getElementById("drive-folder-input");
+  const scriptInput = document.getElementById("drive-script-input");
+  const folderVal = folderInput ? folderInput.value.trim() : "";
+  const scriptVal = scriptInput ? scriptInput.value.trim() : "";
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        drive_folder_url: folderVal,
+        global_apps_script_url: scriptVal,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || t("toast_settings_failed"));
+    }
+    currentGlobalSettings = data.settings || {};
+    if (scriptVal) {
+      setGlobalAppsScriptUrl(scriptVal);
+    }
+    updateDriveUIState();
+    closeDriveSettingsModal();
+    showToast(t("toast_settings_saved"), "success");
+  } catch (err) {
+    console.error("saveDriveSettings error:", err);
+    showToast(err.message || t("toast_settings_failed"), "error");
+  }
+}
+
+// ==========================================================
+// Pending Certificates Summary Engine
+// ==========================================================
+async function fetchPendingTrainersSummary() {
+  const spinner = document.getElementById("pending-refresh-spinner");
+  if (spinner) spinner.classList.add("animate-spin");
+
+  try {
+    const res = await fetch("/api/trainers/pending-summary");
+    if (!res.ok) return;
+    const data = await res.json();
+    activePendingTrainers = data.pending_trainers || [];
+    renderPendingTrainersList(activePendingTrainers);
+  } catch (err) {
+    console.error("fetchPendingTrainersSummary error:", err);
+  } finally {
+    if (spinner) {
+      setTimeout(() => spinner.classList.remove("animate-spin"), 500);
+    }
+  }
+}
+
+function refreshPendingTrainersSummary() {
+  fetchPendingTrainersSummary();
+}
+
+function renderPendingTrainersList(trainers) {
+  const listEl = document.getElementById("sidebar-pending-trainers-list");
+  if (!listEl) return;
+
+  if (!trainers || trainers.length === 0) {
+    listEl.innerHTML = `
+      <div class="px-2 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+        <p class="text-[11px] font-semibold text-emerald-300 flex items-center justify-center gap-1.5">
+          <i data-lucide="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i>
+          <span>${t("all_certificates_issued")}</span>
+        </p>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  listEl.innerHTML = "";
+  trainers.forEach((tr) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "w-full text-start p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 hover:border-white/25 transition group flex items-center justify-between gap-2 shadow-xs";
+    card.title = `${tr.trainer_name} - ${tr.unissued_count} ${t("pending_badge_count")}`;
+    card.onclick = () => selectPendingTrainerFromSidebar(tr.trainer_id, tr.first_pending_date);
+
+    card.innerHTML = `
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-bold text-white truncate group-hover:text-brand-secondary transition">${escapeHtml(tr.trainer_name || "Trainer")}</p>
+        <p class="text-[10px] text-blue-200/70 font-mono truncate">${escapeHtml(tr.first_pending_date || "—")}</p>
+      </div>
+      <span class="px-2 py-0.5 rounded-full bg-rose-500/90 text-white font-mono text-[10px] font-black shrink-0 shadow-xs">
+        ${tr.unissued_count}
+      </span>
+    `;
+    listEl.appendChild(card);
+  });
+  lucide.createIcons();
+}
+
+async function selectPendingTrainerFromSidebar(trainerId, pendingDate) {
+  // 1. Switch mode to operator
+  switchMode("operator");
+
+  // 2. Switch data tab to sheet
+  switchDataTab("sheet");
+
+  // 3. Set trainer select
+  const sheetSelect = document.getElementById("op-sheet-trainer-select");
+  if (sheetSelect) {
+    sheetSelect.value = trainerId;
+  }
+  operatorActiveTrainerId = trainerId;
+  handleSheetTrainerSelect(trainerId, false);
+
+  // 4. Fetch sheet data
+  await fetchCurrentTrainerSheet();
+
+  // 5. Select the pending date if provided
+  const dateSelect = document.getElementById("op-sheet-date-select");
+  if (dateSelect && pendingDate) {
+    if (Array.from(dateSelect.options).some((o) => o.value === pendingDate)) {
+      dateSelect.value = pendingDate;
+    }
+  }
+
+  // 6. Ensure hide issued checkbox is checked
+  const hideIssuedCheckbox = document.getElementById("op-hide-issued-checkbox");
+  if (hideIssuedCheckbox) {
+    hideIssuedCheckbox.checked = true;
+  }
+
+  // 7. Apply sheet filters
+  applySheetFilters();
+}
+
 // ==========================================================
 // Trainer Profiles Manager Engine
 // ==========================================================
@@ -5108,6 +5415,9 @@ async function fetchTrainers() {
     renderTrainersList(activeTrainers);
     renderTrainersQuickGrid(activeTrainers);
     populateOperatorTrainers(activeTrainers);
+    if (typeof fetchPendingTrainersSummary === "function") {
+      fetchPendingTrainersSummary();
+    }
   } catch (err) {
     console.error("Fetch trainers error:", err);
     showToast(err.message, "error");

@@ -204,8 +204,8 @@ class TestTask6DefectFixes(unittest.TestCase):
                     filename_prefix="TestCrash",
                 )
 
-        # Ensure no leftover files with prefix TestCrash exist in EXPORTS_DIR
-        leftovers = list(batch_exporter.EXPORTS_DIR.glob("TestCrash_*.pdf"))
+        # Ensure no leftover files exist in EXPORTS_DIR
+        leftovers = list(batch_exporter.EXPORTS_DIR.glob("Broken_*.pdf")) + list(batch_exporter.EXPORTS_DIR.glob("TestCrash_*.pdf"))
         self.assertEqual(len(leftovers), 0, f"Expected partial export file to be cleaned up, found: {leftovers}")
 
     # =========================================================================
