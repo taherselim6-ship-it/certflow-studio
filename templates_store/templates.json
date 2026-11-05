@@ -639,7 +639,7 @@
         "width_mm": 264.5,
         "height_mm": 55.5,
         "font_family": "Cairo Regular",
-        "english_font": "Cairo Regular",
+        "english_font": "Myriad Pro Semibold",
         "font_size": 32,
         "color": {
           "c": 0,
@@ -661,7 +661,7 @@
         "width_mm": 57.5,
         "height_mm": 14,
         "font_family": "Cairo Regular",
-        "english_font": "Helvetica Regular",
+        "english_font": "Myriad Pro Semibold",
         "font_size": 13,
         "color": {
           "c": 0,
@@ -757,6 +757,6 @@
     },
     "id": "tpl_2600929e",
     "created_at": "2026-11-05 12:47:14",
-    "updated_at": "2026-11-05 12:54:13"
+    "updated_at": "2026-11-05 12:54:53"
   }
 ]
